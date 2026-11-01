@@ -1,0 +1,7 @@
+stateDiagram-v2
+  [*] --> Extracted: LLM writes row [D]
+  Extracted --> Assigned: UNKNOWN
+  Assigned --> InProgress: UNKNOWN
+  InProgress --> Done: UNKNOWN
+  Extracted --> Deleted: transcript purge CASCADE [D]
+  Extracted --> Overwritten: regeneration (summary/minutes/notes only) [D]

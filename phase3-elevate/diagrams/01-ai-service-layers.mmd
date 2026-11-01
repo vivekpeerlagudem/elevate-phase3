@@ -1,0 +1,9 @@
+flowchart LR
+  R["routes/<br/>thin controllers"] --> H["handlers/<br/>business orchestration"]
+  H --> RP["repositories/<br/>DB CRUD, own commit"]
+  H --> SV["services/<br/>Graph, Recall, Jira, Tempo, S3, LiteLLM"]
+  H -->|send_task_with_trace| Q[("Redis broker")]
+  Q --> T["worker/tasks/<br/>thin wrappers"] --> WU["worker/utils/<br/>real background logic"]
+  WU --> RP & SV
+  RP --> M["models/ (SQLModel)"]
+  WU --> TPL["templates/llm/<br/>Jinja2 prompts"]

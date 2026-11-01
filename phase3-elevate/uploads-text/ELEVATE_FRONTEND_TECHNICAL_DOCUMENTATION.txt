@@ -1,0 +1,934 @@
+                                                 Elevate 2.0
+                          Frontend Technical Documentation
+ A read-only architectural review of the Elevate 2.0 React/TypeScript frontend. Covers project layout,
+ routing, state, components, API integrations, authentication, workflows, styling, build configuration,
+ limitations, and open questions.
+
+
+           Project                       elevate-2.0 (package.json name)
+
+           Version                       2.0.0
+
+           Framework                     React 18.3.1 + TypeScript 5.5 + Vite 5.4
+
+           Document type                 Read-only architectural review
+
+           Scope                         Frontend source tree (src/, public/, config)
+
+           Date                          2026-10-30
+
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                      Page 1
+ 1. Executive Overview
+ Elevate 2.0 is a single-page web application (SPA) built with React, TypeScript, and Vite that serves as an internal
+ leadership / operations dashboard for Kensium. The application provides authenticated access to five core data
+ domains: Employees (users), Projects, Customers, Meetings, and a role-based permissions system (Roles, Modules,
+ RolePermissions). The frontend is purely a thin presentation and workflow layer; all data lives in two separate
+ ASP.NET-style backend services whose base URLs are configured through environment variables
+ (VITE_API_BASE_URL and VITE_Login_API_BASE_URL).
+
+ The code reviewed in this document resides under kensium-solutions-kensium_elevate-2.0-225096fcc9b3/. The src/
+ tree contains a flat pages/ folder (16 route components), a small set of layout and UI components, two Zustand
+ stores, two hooks, a config/ folder for MSAL (Microsoft 365) wiring, and a single API service module src/api/api.ts that
+ centralises all REST calls.
+
+ Microsoft 365 (Azure AD / MSAL) single sign-on is implemented in the codebase but is currently disabled. The MSAL
+ provider in src/main.tsx and the O365 button in src/pages/Login.tsx are commented out with explicit // TODO:
+ Uncomment for production to enable Microsoft 365 login markers. The active sign-in path is username/password
+ against the backend /api/User/login-with-password endpoint.
+
+ The Dashboard page is a static placeholder (hard-coded 0 values); charts and real KPIs are not wired. The majority
+ of implemented functionality consists of CRUD list / edit screens for the five domains and the role-permission matrix
+ editor.
+
+
+ 2. Frontend Technology Stack and Versions
+ Pulled verbatim from package.json:
+
+      Category             Package                    Version           Role
+
+      Framework            react / react-dom          ^18.3.1           UI runtime
+
+      Language             typescript                 ^5.5.4            Static typing
+
+      Bundler              vite                       ^5.4.2            Dev server + production build
+
+      Routing              react-router-dom           ^6.26.0           Client-side SPA routing
+
+      State                zustand                    ^4.5.5            Global stores (auth + counter)
+
+      HTTP                 native fetch               built-in          Used inside src/api/api.ts (axios is listed but unused)
+
+      HTTP (listed)        axios                      ^1.7.0            Declared but not imported anywhere in src/
+
+      Auth (SSO)           @azure/msal-browser        ^4.27.0           Microsoft Entra / O365 login (currently disabled)
+
+      Auth (SSO)           @azure/msal-react          ^3.0.23           React bindings for MSAL
+
+      Styling              tailwindcss                ^3.4.13           Utility-first CSS
+
+      Styling              tailwindcss-animate        ^1.0.7            Animation presets
+
+      Styling              class-variance-authority   ^0.7.0            Variant-aware class composition (Button)
+
+      Styling              clsx + tailwind-merge      ^2.1.1 / ^2.5.2   Class merging helper (lib/utils.ts cn())
+
+      Icons                lucide-react               ^0.427.0          Icon set
+
+      Lint                 eslint + plugins           ^8.57 / 7.18 / 4.6 / Code
+                                                                           0.4 quality
+
+      CSS tooling          postcss / autoprefixer     ^8.4 / ^10.4      Tailwind pipeline
+
+
+ Notable: No form library (react-hook-form / formik), no validation library (zod / yup), no data-fetching library
+ (react-query / swr), no toast/notification library, no charting library, no testing framework (jest/vitest), no CI
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                                    Page 2
+ configuration file in the repo. The axios dependency is declared but is never imported — all HTTP calls use the
+ built-in fetch wrapped by a hand-rolled ApiClient class in src/api/api.ts.
+
+
+ 3. Project Folder Structure
+  kensium-solutions-kensium_elevate-2.0-225096fcc9b3/
+  ■■■ index.html                  Vite HTML entry; mounts #root and /src/main.tsx
+  ■■■ package.json                Dependencies and scripts (dev / build / lint / preview)
+  ■■■ vite.config.ts              Vite + React plugin; '@' alias → ./src; preview on 0.0.0.0:4173
+  ■■■ tsconfig.json               TS strict mode, bundler module resolution, @/ path alias
+  ■■■ tsconfig.node.json          Node-side TS config for Vite
+  ■■■ tailwind.config.js          Tailwind content globs, CSS-variable color tokens, dark mode
+  ■■■ postcss.config.js           Tailwind + autoprefixer pipeline
+  ■■■ web.config                  IIS: default document + SPA rewrite to '/'; CORS *; static cache
+  ■■■ DEPLOYMENT_GUIDE.md         Deployment notes
+  ■■■ HTTPS_SETUP_GUIDE.md        HTTPS / cert notes
+  ■■■ IIS_FIX_GUIDE.md            IIS troubleshooting
+  ■■■ IIS_PORT_5173_SETUP.md      Dev port under IIS
+  ■■■ O365_SETUP.md               Azure AD app registration guide
+  ■■■ WINDOWS_SERVER_DEPLOYMENT.md
+  ■■■ README.md
+  ■■■ public/                     Static assets served at '/': Kensiumlogo.svg, backgrounds, favicons
+  ■■■ src/
+      ■■■ main.tsx                React root; renders <App/> inside StrictMode
+      ■■■ App.tsx                 react-router-dom BrowserRouter + route table
+      ■■■ index.css               Tailwind directives and global CSS variables
+      ■■■ vite-env.d.ts           Vite ambient types
+      ■■■ api/
+      ■   ■■■ api.ts              Central ApiClient (fetch) + typed service objects per domain
+      ■■■ components/
+      ■   ■■■ Layout.tsx          Shell: sidebar + top header + <Outlet/>
+      ■   ■■■ Navigation.tsx      Secondary / legacy nav component
+      ■   ■■■ ProtectedRoute.tsx Guard: redirects to /login if !isAuthenticated
+      ■   ■■■ RichTextEditor.tsx contenteditable-based lightweight rich-text editor
+      ■   ■■■ Sidebar.tsx         Collapsible brand sidebar, menu tree, logout
+      ■   ■■■ ui/
+      ■       ■■■ Button.tsx      CVA-based button variants
+      ■       ■■■ Card.tsx        Card primitives (Header/Title/Content)
+      ■■■ config/
+      ■   ■■■ msalConfig.ts       Azure AD client ID, tenant, authority, scopes
+      ■■■ hooks/
+      ■   ■■■ useApi.ts           Thin generic data/loading/error wrapper
+      ■   ■■■ useMsal.ts          loginPopup / logoutPopup / acquireTokenSilent helpers
+      ■■■ lib/
+      ■   ■■■ utils.ts            cn(...) — twMerge(clsx(...))
+      ■   ■■■ richTextConverter.ts HTML ↔ domain conversions for RichTextEditor
+      ■■■ pages/
+      ■   ■■■ Login.tsx
+      ■   ■■■ Dashboard.tsx
+      ■   ■■■ EmployeeList.tsx / EmployeeEdit.tsx
+      ■   ■■■ ProjectList.tsx / ProjectEdit.tsx / ProjectNeedsAttention.tsx
+      ■   ■■■ CustomerList.tsx / CustomerEdit.tsx / CustomerNeedsAttention.tsx
+      ■   ■■■ Roles.tsx / RolePermissions.tsx / RolePermissionsList.tsx
+      ■   ■■■ MeetingList.tsx
+      ■   ■■■ Home.tsx            (not routed — orphan)
+      ■   ■■■ About.tsx           (not routed — orphan)
+      ■■■ store/
+          ■■■ useAuthStore.ts     Zustand + persist middleware; auth-storage key in localStorage
+          ■■■ useStore.ts         Trivial counter store (appears unused by production pages)
+
+
+ 4. Application Initialization and Entry Points
+ 4.1 index.html
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                             Page 3
+ Minimal HTML shell: sets <title>Elevate 2.0</title>, renders a single <div id="root">, and loads /src/main.tsx as a
+ module. All UI is created client-side; this is a true SPA.
+
+ 4.2 src/main.tsx
+ Imports               App                     and                index.css,              then                 calls
+ ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>).
+ The commented-out block shows the intended production bootstrap: create a PublicClientApplication from
+ msalConfig, await msalInstance.initialize(), then render inside <MsalProvider>. Because that block is disabled, the
+ useMsal() React context is not provided to the tree, so any code path reaching useMsalAuth() at runtime would
+ throw.
+
+ 4.3 src/App.tsx
+ Wraps everything in <BrowserRouter> and declares the route tree (see §5). No global error boundary, no global
+ suspense, no theme provider, and no React Query / toast provider.
+
+ 4.4 Global providers summary
+     • Router: BrowserRouter (HTML5 history, requires SPA fallback — handled by web.config rewrite).
+
+     • Auth state: Zustand useAuthStore (no provider; hook-based).
+
+     • MSAL: declared but disabled; would be MsalProvider wrapping App.
+
+     • Styling: Tailwind utility classes; no runtime theme provider.
+
+ 5. Routing and Navigation
+ Routing is defined declaratively in src/App.tsx using react-router-dom v6 nested routes.
+
+       Path                                 Element                                  Guard            Layout
+
+       /login                               Login                                    none (public)    none
+
+       /                                    <Navigate to="/dashboard"/>              ProtectedRoute   Layout
+
+       /dashboard                           Dashboard                                ProtectedRoute   Layout
+
+       /employees                           EmployeeList                             ProtectedRoute   Layout
+
+       /employees/edit                      EmployeeEdit (reads ?id=)                ProtectedRoute   Layout
+
+       /projects                            ProjectList                              ProtectedRoute   Layout
+
+       /projects/needs-attention            ProjectNeedsAttention                    ProtectedRoute   Layout
+
+       /projects/edit                       ProjectEdit (reads ?id=)                 ProtectedRoute   Layout
+
+       /customers                           CustomerList                             ProtectedRoute   Layout
+
+       /customers/needs-attention           CustomerNeedsAttention                   ProtectedRoute   Layout
+
+       /customers/edit                      CustomerEdit (reads ?id=)                ProtectedRoute   Layout
+
+       /roles                               Roles                                    ProtectedRoute   Layout
+
+       /role-permissions                    RolePermissions (reads ?roleId=&edit=)   ProtectedRoute   Layout
+
+       /role-permissions-list               RolePermissionsList                      ProtectedRoute   Layout
+
+       /meetings                            MeetingList                              ProtectedRoute   Layout
+
+
+ Guard: src/components/ProtectedRoute.tsx reads isAuthenticated from useAuthStore and either renders <Outlet/> or
+ redirects to /login. There is no explicit 404 route; unknown paths fall through to the empty <Routes> match and render
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                    Page 4
+ nothing.
+
+ Navigation UI: src/components/Sidebar.tsx declares the menu tree in a local menuItems array. The sidebar supports
+ a collapsed (70 px) and expanded (265 px) mode and renders tooltips when collapsed. Logout branches on
+ loginMethod: if the user signed in via O365, logoutFromO365() runs first; then the Zustand store is cleared and the
+ user is navigated to /login.
+
+ A top header lives in Layout.tsx: welcome message, email, and avatar initials derived from the Zustand user record.
+ There is no breadcrumb component. Deep-link navigation into the edit pages uses query strings (?id=…) rather than
+ path parameters.
+
+ Orphan pages: pages/Home.tsx and pages/About.tsx are not referenced from the route table, Sidebar, or anywhere
+ else in src/ — they are dead code.
+
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                 Page 5
+ 6. Pages and Component Architecture
+ 6.1 Component inventory
+ Layout & chrome
+
+     • components/Layout.tsx — top-level app shell. Owns sidebarOpen and sidebarCollapsed UI state, renders
+     <Sidebar>, a 56-px header with avatar initials/online dot, and <Outlet/>.
+
+     • components/Sidebar.tsx — static menuItems array; expandable groups (Customers, Projects, Settings);
+     active-route highlighting via useLocation(); dedicated collapsed-mode render with hover tooltips; Help & Support
+     plus Logout controls.
+
+     • components/Navigation.tsx — a secondary nav component present in the tree but not mounted by any route;
+     appears to be an earlier iteration.
+
+     • components/ProtectedRoute.tsx — 11-line auth guard.
+
+ UI primitives (components/ui/)
+
+     • Button.tsx — class-variance-authority variants (default / destructive / outline / etc.).
+
+     • Card.tsx — composable Card, CardHeader, CardTitle, CardContent (used across Dashboard and most list/edit
+     pages).
+
+ Specialized
+
+     • components/RichTextEditor.tsx — 132-line contenteditable editor with bold/italic/underline/list/link toolbar. Used
+     in Project and Customer edit screens for notes-type fields. Round-trip HTML↔plain conversions live in
+     lib/richTextConverter.ts.
+
+ 6.2 Pages
+ All route components live in src/pages/. They are self-contained — each page owns its own data-loading useEffect,
+ local list/filter state, pagination, and submission logic. There is no shared data cache; navigating away and back
+ triggers a fresh fetch.
+
+       Page                         Lines   Responsibility                   Key behaviors
+
+       Login.tsx                    245     Username/password sign-in        Submits via useAuthStore.login(); O365 button commented out; Forgot Password
+
+       Dashboard.tsx                47      KPI landing page                 Three Cards with hard-coded '0' values; no API call
+
+       EmployeeList.tsx             379     User directory                   Filters (department/jobTitle/location), global search, 20-per-page pagination, CSV
+
+       EmployeeEdit.tsx             323     Edit a single employee           Loads via ?id=; sends UpdateEmployeePayload (ctc, hours, rate, billable)
+
+       ProjectList.tsx              326     Project directory                List + filters + navigation to edit; archive filter
+
+       ProjectEdit.tsx              282     Edit a project                   RichTextEditor for notes; PUTs full Project object
+
+       ProjectNeedsAttention.tsx    343     Projects flagged by rules        Client-side predicate filter over same /api/Project data
+
+       CustomerList.tsx             369     Customer directory               Mirrors ProjectList patterns
+
+       CustomerEdit.tsx             303     Edit a customer                  RichTextEditor fields; PUTs full Customer object
+
+       CustomerNeedsAttention.tsx   297     Customers flagged                Client-side predicate over /api/Customer; also calls /api/Project/parent/{issueKey}
+
+       Roles.tsx                    276     CRUD list of Roles               Inline create/edit/delete; links to permissions matrix
+
+       RolePermissions.tsx          553     Permission matrix editor         Loads modules + employees + role; picks department/jobTitles; type per screen; b
+
+       RolePermissionsList.tsx      321     Browse existing role permissions Read-only grid of /api/RolePermission
+
+       MeetingList.tsx              236     Calendar/meeting listing         Reads /api/Meeting; renders date-range table
+
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                                          Page 6
+       Home.tsx                    56       — orphan —            Not mounted
+
+       About.tsx                   43       — orphan —            Not mounted
+
+
+ 7. State Management and Data Flow
+ Global state is intentionally minimal. The project uses Zustand for a single meaningful store (useAuthStore) plus a
+ near-empty counter store (useStore) that is not used by any production page.
+
+ 7.1 useAuthStore — src/store/useAuthStore.ts
+ Shape (AuthState):
+  user: User | null                        // { id, username, email, name, ... }
+  isAuthenticated: boolean
+  loading: boolean
+  error: string | null
+  loginMethod: 'credentials' | 'o365' | null
+  login(username, password): Promise<void>
+  loginWithO365(account, accessToken?): Promise<void>
+  logout(): void
+  clearError(): void
+
+ The store is wrapped in Zustand's persist middleware with name 'auth-storage' and a partialize that persists only
+ user, isAuthenticated, and loginMethod into localStorage. Loading, error, and the full O365 access token are not
+ persisted.
+
+ login() calls loginApi.verifyUserCredentials(), which POSTs to {apiBaseUrl}/api/User/login-with-password with {
+ email, passwordHash }. On success, it writes the response body into user, sets isAuthenticated=true, and tags
+ loginMethod='credentials'. On failure it stores the error message and re-throws.
+
+ loginWithO365() is invoked after an MSAL popup resolves. It calls loginApi.checkUserByEmail(email) against
+ {apiBaseUrl}/api/User/login; if the user exists the MSAL account plus any DB fields are merged into user and
+ loginMethod='o365' is set.
+
+ 7.2 Local component state
+ Each page manages its own data with useState + useEffect: records, loading flag, error string, pagination page,
+ column filters, and search text. There is no shared cache and no request de-duplication; every mount of
+ EmployeeList re-fetches the full user list.
+
+ 7.3 Data flow pattern
+  User action (click / submit)
+         ■
+         ▼
+  Page component useState handler
+         ■
+         ▼
+  domainApi.xxx() from src/api/api.ts
+         ■
+         ▼
+  ApiClient.request() → fetch(baseURL + endpoint, {headers, body})
+         ■
+         ▼
+  ApiResponse<T> { data, success } or Error (with .response)
+         ■
+         ▼
+  Page setState → React re-render → UI updates
+         ■
+         ▼
+  Error path: setError(message) → inline red banner, no toast library
+
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                 Page 7
+ 8. API Integration and Endpoint Inventory
+ All HTTP calls originate from src/api/api.ts. Two base URLs are configured:
+  VITE_API_BASE_URL       default: https://localhost:5001/
+  VITE_Login_API_BASE_URL default: https://localhost:7115/                     // currently exported but all auth
+                                                                               // calls below actually use apiBaseUrl
+
+ The ApiClient class is a thin wrapper around fetch:
+
+     • Normalises Content-Type: application/json.
+
+     • Joins baseURL + endpoint with a single '/'.
+
+     • Parses ASP.NET Core ModelState-style errors objects into semicolon-joined messages, and preserves
+     errorData.title / message fallbacks.
+
+     • Attaches the parsed body as error.response = {status, data} for callers that want it.
+
+     • Does not attach any Authorization header — no bearer token is sent on data requests.
+
+ 8.1 Endpoint inventory
+      Method      Endpoint                                Service object                         Caller(s)
+
+      POST        /api/User/login-with-password           loginApi.verifyUserCredentials         useAuthStore.login → Login.tsx
+
+      POST        /api/User/login                         loginApi.checkUserByEmail              useAuthStore.loginWithO365 (O365 path, disabled)
+
+      GET         /api/User                               employeeApi.getEmployees               EmployeeList, RolePermissions, RolePermissionsList
+
+      GET         /api/User/{id}                          employeeApi.getEmployee                EmployeeEdit
+
+      POST        /api/User                               employeeApi.createEmployee             (defined; call site not clearly wired to a UI create flow)
+
+      PUT         /api/User/{id}                          employeeApi.updateEmployee             EmployeeEdit
+
+      GET         /api/Project                            projectApi.getProjects                 ProjectList, ProjectNeedsAttention
+
+      GET         /api/Project/{id}                       projectApi.getProject                  ProjectEdit
+
+      PUT         /api/Project/{id}                       projectApi.updateProject               ProjectEdit
+
+      GET         /api/Project/parent/{issueKey}          customerApi.getProjectsByParentIssueKey
+                                                                                               CustomerNeedsAttention / CustomerEdit
+
+      GET         /api/Customer                           customerApi.getCustomers               CustomerList, CustomerNeedsAttention
+
+      GET         /api/Customer/{id}                      customerApi.getCustomer                CustomerEdit
+
+      PUT         /api/Customer/{id}                      customerApi.updateCustomer             CustomerEdit
+
+      GET         /api/Role                               roleApi.getRoles                       Roles, RolePermissions, RolePermissionsList
+
+      POST        /api/Role                               roleApi.createRole                     Roles
+
+      PUT         /api/Role/{id}                          roleApi.updateRole                     Roles
+
+      DELETE      /api/Role/{id}                          roleApi.deleteRole                     Roles
+
+      GET         /api/RolePermission                     rolePermissionApi.getRolePermissions   RolePermissionsList, RolePermissions (edit mode)
+
+      GET         /api/RolePermission/{id}                rolePermissionApi.getRolePermission    RolePermissions
+
+      POST        /api/RolePermission                     rolePermissionApi.createRolePermission RolePermissions (single)
+
+      POST        /api/RolePermission/bulk                rolePermissionApi.bulkCreateRolePermissions
+                                                                                                RolePermissions (save-all)
+
+      PUT         /api/RolePermission/{id}                rolePermissionApi.updateRolePermissionRolePermissions
+
+      DELETE      /api/RolePermission/{id}                rolePermissionApi.deleteRolePermission RolePermissions (edit cleanup)
+
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                                     Page 8
+      GET         /api/Module                           moduleApi.getModules                 RolePermissions
+
+      GET         /api/Meeting                          meetingApi.getMeetings               MeetingList
+
+      (stub)      /users, /users/{id}                   exampleApi.*                         Defined in api.ts but never imported by any page
+
+
+
+ 8.2 Request / response shapes (as declared on the frontend)
+ Representative TypeScript interfaces exported from src/api/api.ts:
+  interface Employee { id, msUserId, firstName, lastName, displayName, email,
+      jobTitle, department, officeLocation, userType, employeeId,
+      reportingManagerEmail, status, normalizationFactor, ctc,
+      isTimeSheetRequired, billable, monthlyTargetHours, hourlyRate,
+      createdBy, updatedBy, createdAt, updatedAt, isRemoved }
+
+  interface UpdateEmployeePayload {
+      ctc, monthlyTargetHours, hourlyRate, billable, updatedBy }
+
+  interface Project { id, issueId, issueKey, parentId, parentIssueKey, summary,
+      customerName, sowId, contractStartDate, projectManager, projectLead,
+      solutionArchitect, techLead, qaEngineer, projectNotes, billingNotes,
+      crDetails, description, signatoryName/Title/Email, primary/secondaryContact*,
+      workType, billingType, projectType, serviceType, status, projectHealth,
+      workItemBasedCompleted, scheduleBasedProgress, durationInDays,
+      projectPhase, projectStartDate, discoveryStartDate, developmentStartDate,
+      qaStartDate, uatStartDate, goLiveDate, hypercareCompletionDate,
+      projectApprovedHours, projectPlannedHours, loggedHours, invoicedHours,
+      tempoAccountName, hourlyRate, commission, budget, isRemoved,
+      createdBy, updatedBy, createdAt, updatedAt }
+
+  interface Customer { id, issueId, issueKey, summary, status, msaId,
+      msaStartDate, customerSegment, customerType, industry,
+      customerSentiment, description, signatory*, businessAddress,
+      state, country, websiteUrl, salesRepresentative,
+      clientSuccessManager, sharePointUrl,
+      erpPlatform, erpVar, erpPoc, ecommercePlatform, ecommerceSi,
+      ecommercePoc, isRemoved, createdBy, updatedBy, createdAt, updatedAt }
+
+  interface Role { id?, name, description, createdBy, updatedBy }
+  interface Module { id?, name?, description?, parentId? , [key]:any }
+  interface RolePermission { id?, roleId, moduleId, type, department,
+      jobTitle, createdBy, updatedBy? }
+  interface Meeting { id, title, organizer, attendees,
+      startDateTime, endDateTime, ... }
+
+ Field names (parentIssueKey, tempoAccountName, sowId, msaId) suggest the backend hydrates its data from
+ Atlassian Jira / Tempo and a document store that holds SOW/MSA references. These are inferred from the frontend
+ contract; actual backend behaviour is unverified.
+
+
+ 9. End-to-End Feature Workflows
+ 9.1 Sign-in (email + password)
+ 1. User lands on /login; <Login/> renders.
+
+ 2. User types username/email + password;              onSubmit        runs   handleSubmit    (Login.tsx:34)      which     calls
+ useAuthStore.login(username, password).
+
+ 3. The store sets loading=true and calls loginApi.verifyUserCredentials(username, password) (api.ts:271).
+
+ 4. A POST {apiBaseUrl}/api/User/login-with-password is sent with body { email, passwordHash } and header
+ Content-Type: application/json. Note: the password is sent in plaintext over the wire under the field name
+ passwordHash; actual hashing (if any) happens server-side.
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                              Page 9
+ 5. On HTTP 200, the response JSON becomes the user object; isAuthenticated=true, loginMethod='credentials';
+ Zustand persists these to localStorage['auth-storage'].
+
+ 6. A useEffect in Login.tsx:22 observes isAuthenticated and calls navigate('/'), which the route table rewrites to
+ /dashboard.
+
+ 7. On HTTP ≥ 400, the store captures errors{} / title / message and renders a red inline banner inside the login form;
+ the button re-enables.
+
+ 9.2 Microsoft 365 sign-in (currently disabled)
+ 1. User would click the Sign in with Microsoft 365 button (commented out in Login.tsx).
+
+ 2.    useMsalAuth.loginWithO365()    (hooks/useMsal.ts:7)         calls   instance.loginPopup(loginRequest)       where
+ loginRequest.scopes = ['User.Read'].
+
+ 3. MSAL stores the account/tokens in sessionStorage (msalConfig.cache.cacheLocation) and returns the account +
+ accessToken to the caller.
+
+ 4. useAuthStore.loginWithO365(account, accessToken) calls loginApi.checkUserByEmail(email) which POSTs
+ {apiBaseUrl}/api/User/login with body { email } to confirm the user exists.
+
+ 5. If the backend returns 2xx, the MSAL account + DB record are merged into user and loginMethod='o365';
+ otherwise a User not found in the system error is thrown.
+
+ 6. Logout: Sidebar.handleLogout branches on loginMethod; the O365 path calls instance.logoutPopup({ account:
+ accounts[0] }) before clearing Zustand state.
+
+ Status: the MSAL provider is not mounted in main.tsx, so this flow is non-functional at runtime even though all
+ supporting code is present.
+
+ 9.3 Employee list + export
+ 1. Navigation to /employees renders EmployeeList.
+
+ 2. Mount useEffect at EmployeeList.tsx:19 calls employeeApi.getEmployees() → GET {apiBaseUrl}/api/User.
+
+ 3. Response Employee[] is filtered to drop isRemoved=true and emails containing archive, then stored in employees.
+
+ 4. Derived selectors compute distinct department / jobTitle / officeLocation options; filters, search text, and 20-row
+ pagination are all client-side.
+
+ 5. Export button calls exportToCSV() which builds a quoted CSV in memory and triggers a Blob download named
+ employees_<yyyy-mm-dd>.csv.
+
+ 6. Edit row action navigates to /employees/edit?id={emp.id}.
+
+ 9.4 Employee edit
+ 1. EmployeeEdit reads id from useSearchParams() and calls employeeApi.getEmployee(id)                         →    GET
+ /api/User/{ID-UPPERCASE}. The frontend uppercases the GUID (api.ts:385) before sending.
+
+ 2. The form shows editable fields: ctc, monthlyTargetHours, hourlyRate, billable. Non-editable fields (name, email,
+ title, department, etc.) are rendered as read-only.
+
+ 3. Save submits employeeApi.updateEmployee(id, UpdateEmployeePayload) → PUT /api/User/{id} with body { ctc,
+ monthlyTargetHours, hourlyRate, billable, updatedBy }. updatedBy is sourced from useAuthStore.user.
+
+ 4. On success the page navigates back to /employees; on error the ASP.NET model-state message is shown inline.
+
+ 9.5 Project edit (with rich-text notes)
+ 1. ProjectEdit loads the project via projectApi.getProject(id).
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                     Page 10
+ 2.   Several  free-text   fields   (projectNotes, billingNotes, crDetails, description)     render      through
+ components/RichTextEditor.tsx, which exposes document.execCommand-based bold/italic/underline/list/link controls
+ and emits HTML.
+
+ 3. Save sends the entire Project object back via projectApi.updateProject(id, project) → PUT /api/Project/{id}. The
+ frontend does not perform a PATCH or partial update; all 50+ fields are round-tripped.
+
+ 9.6 Role permission matrix
+ 1. User navigates to /roles, picks a role and chooses Permissions. RolePermissions is loaded with
+ ?roleId=…&edit=true|false.
+
+ 2. On mount the page fetches: moduleApi.getModules()                       (GET /api/Module), roleApi.getRoles(),
+ employeeApi.getEmployees()     (for     department         /  jobTitle      lookups), and     in   edit   mode
+ rolePermissionApi.getRolePermissions() to prefill selections.
+
+ 3. The screen renders a two-pane editor: department + job-title multi-select on the left, a tree of modules with
+ per-screen permission type (no_access, view_basic, view_all, full_access) on the right.
+
+ 4. Save: in edit mode the page first DELETEs each existing permission by id, then POST /api/RolePermission/bulk
+ with a list of { roleId, moduleId, type, department, jobTitle, createdBy, updatedBy } rows (api.ts:514).
+
+ 9.7 Customer Needs Attention
+ 1. CustomerNeedsAttention fetches GET /api/Customer and runs client-side predicates to compute flagged records
+ (missing MSA, no sales rep, stale segment, etc. — exact rules live inside the component).
+
+ 2. Expanding a customer row calls customerApi.getProjectsByParentIssueKey(issueKey)                          →     GET
+ /api/Project/parent/{issueKey} to show child projects.
+
+
+ 10. Authentication and Authorization
+ 10.1 Credentials-based sign-in (active)
+ Covered in §9.1. Credentials are posted directly to the backend; no Authorization header is attached to subsequent
+ data requests. There is no token refresh mechanism and no evidence of a cookie-based session either. In short, the
+ frontend treats isAuthenticated in Zustand as the sole authority — anything that re-hydrates it (persisted localStorage)
+ will grant client-side access to protected routes, regardless of backend session state. Any real authorization must
+ be enforced on the backend.
+
+ 10.2 O365 single sign-on (dormant)
+ MSAL is configured in src/config/msalConfig.ts:
+  clientId    ← VITE_AZURE_CLIENT_ID
+  tenantId    ← VITE_AZURE_TENANT_ID
+  authority   ← VITE_AZURE_AUTHORITY (fallback https://login.microsoftonline.com/<tenant>                   or /common)
+  redirectUri ← VITE_AZURE_REDIRECT_URI (fallback window.location.origin)
+  cache.cacheLocation = 'sessionStorage'
+  scopes      = ['User.Read']
+
+ The provider wrap and all O365 UI are commented out but intact (see §4.2 and §9.2). Enabling it requires
+ uncommenting the MsalProvider block in src/main.tsx, uncommenting the button and the handleO365Login handler in
+ src/pages/Login.tsx, and providing the three VITE_AZURE_* environment values.
+
+ 10.3 Route protection
+ ProtectedRoute.tsx is a simple Outlet gate. Every non-login route in App.tsx is wrapped by it. There is no role-based
+ route restriction on the frontend — any authenticated user can navigate to every page, including role management
+ and permission editing. The RolePermissions feature is the mechanism by which the backend is expected to enforce
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                     Page 11
+ finer authorization.
+
+ 10.4 Logout
+ Sidebar.handleLogout (Sidebar.tsx:43) performs: optional MSAL logoutPopup → useAuthStore.logout() →
+ navigate('/login'). The logout() action clears user/isAuthenticated/loginMethod/error, which Zustand's persist
+ middleware then flushes to localStorage.
+
+
+ 11. Forms, Validation, and User Interactions
+ No form library is used. All forms are built with native inputs, controlled by local useState, and submitted through
+ onSubmit/onClick handlers. Validation is HTML-level only (required, type="number", type="email") plus imperative if
+ checks in save handlers. There is no schema validation (zod / yup) and no field-level error UI framework; errors are
+ shown as inline banners pulled from backend responses.
+
+ Notable forms: Login.tsx, EmployeeEdit.tsx, ProjectEdit.tsx, CustomerEdit.tsx, Roles.tsx, RolePermissions.tsx. Rich
+ text fields use the custom editor described in §6.1.
+
+ User interactions: client-side search + column filters + pagination (20 rows) are implemented repeatedly in each list
+ page (duplication rather than a shared table component). CSV export is implemented inline in EmployeeList; other list
+ pages do not export.
+
+
+ 12. Styling and UI Architecture
+ Tailwind CSS 3.4 drives all styling. tailwind.config.js scans ./src/**/*.{ts,tsx} (plus pages / components / app roots,
+ which are unused). The config declares a darkMode: ['class'] strategy and extends the theme with
+ CSS-variable-backed semantic tokens: background, foreground, primary, secondary, destructive, muted, accent,
+ popover, card, each with a -foreground pair. The variables themselves are defined in src/index.css.
+
+ Dark mode: the Tailwind strategy is class-based, but no component toggles the .dark class on <html>; dark mode is
+ latent, not active.
+
+ UI primitives: components/ui/Button.tsx uses class-variance-authority for variants and components/ui/Card.tsx
+ provides a shadcn-style card. The sidebar uses a hard-coded brand color #092540 and the login button uses
+ #4D9078, outside the CSS-variable system.
+
+ Icons: lucide-react is used consistently (Menu, Users, Briefcase, LayoutDashboard, ShieldCheck, Calendar,
+ AlertCircle, …).
+
+ Helper: src/lib/utils.ts exports cn(...inputs) = twMerge(clsx(inputs)), used across most components to compose
+ conditional class strings.
+
+
+ 13. Error Handling and Asynchronous Processing
+ 13.1 Transport-level
+ The ApiClient.request method parses non-2xx responses, specifically handling ASP.NET Core's ModelState shape ({
+ errors: { field: string[] } }) and the ProblemDetails shape (title / message). It then throws a normal Error enriched with
+ .response = { status, data }.
+
+ 13.2 Component-level
+ Every page keeps a local error string that renders as a red inline block. There is no toast system and no global
+ error boundary. Loading states are inline text (Loading employees…, Logging in…) or a disabled button; there is no
+ spinner component.
+
+ 13.3 Async orchestration
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                       Page 12
+ Fetches use async/await inside useEffect. Several pages do not include cleanup/cancellation (AbortController is not
+ used), which means a rapid navigation can cause a setState on an unmounted component (silent memory leak
+ warning in React 18 is suppressed but the race remains).
+
+ The useApi hook (hooks/useApi.ts) offers a generic { data, loading, error, execute } wrapper, but inspection of pages
+ shows it is seldom wired in; most pages roll their own.
+
+
+ 14. External Integrations
+ 14.1 Microsoft Entra ID / Microsoft 365 (@azure/msal-browser, msal-react)
+ Full-featured popup OAuth flow with scope User.Read. Access tokens from MSAL are stored in sessionStorage; after
+ a successful popup the frontend forwards only the account.username (email) to the backend /api/User/login endpoint
+ to verify the user exists. The MS Graph endpoint (https://graph.microsoft.com/v1.0/me) is referenced in msalConfig.ts
+ but is not called anywhere in src/.
+
+ 14.2 Backend REST services
+ Two base URLs are configured but all live calls currently target VITE_API_BASE_URL. The
+ VITE_Login_API_BASE_URL value is exported from src/api/api.ts but is unused at the moment — loginApi methods
+ explicitly use config.apiBaseUrl / API_BASE_URL.
+
+ 14.3 Jira / Tempo (indirect)
+ Field names such as issueId, issueKey, parentIssueKey, and tempoAccountName on Project and Customer
+ interfaces indicate the backend is populated from Atlassian Jira and Tempo. The frontend does not call Jira or Tempo
+ directly; it only consumes the hydrated records from the backend.
+
+ 14.4 SharePoint
+ Customer.sharePointUrl is a plain external link rendered in the UI; no SharePoint SDK is used.
+
+
+ 15. Configuration, Build, and Deployment
+ 15.1 Environment variables (names only)
+  VITE_API_BASE_URL                 Primary backend REST base URL
+  VITE_Login_API_BASE_URL           Secondary login API base URL (exported but currently unused)
+  VITE_AZURE_CLIENT_ID              Azure AD app registration — Client (Application) ID
+  VITE_AZURE_TENANT_ID              Azure AD tenant GUID
+  VITE_AZURE_AUTHORITY              Full authority URL (optional override)
+  VITE_AZURE_REDIRECT_URI           MSAL redirect URI (defaults to window.location.origin)
+
+ All VITE_* variables are inlined into the client bundle at build time; none are secrets. Secret values must not be
+ placed in VITE_ variables.
+
+ 15.2 Scripts (package.json)
+  dev     : vite                                              # Vite dev server with HMR
+  build   : tsc && vite build                                 # Strict TS check then bundle
+  preview : vite preview (host 0.0.0.0, port 4173)            # serves ./dist locally
+  lint    : eslint . --ext ts,tsx --max-warnings 0
+
+ 15.3 Vite config
+ vite.config.ts: React plugin, '@' alias → ./src, preview bound to all interfaces on 4173. No proxy configured — API
+ cross-origin is handled by CORS at the server.
+
+ 15.4 TypeScript
+
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                  Page 13
+ Strict mode on, noUnusedLocals, noUnusedParameters, bundler module resolution, jsx: react-jsx. The @/* path alias
+ is kept in sync with Vite's.
+
+ 15.5 Deployment target
+ web.config indicates deployment under IIS on Windows:
+
+     • Default document index.html.
+
+     • URL Rewrite rule: any request that is not an existing file or directory is rewritten to /, i.e. SPA fallback for
+     client-side routes.
+
+     • CORS headers: Access-Control-Allow-Origin: *, Allow-Methods GET/POST/PUT/DELETE/OPTIONS,
+     Allow-Headers Content-Type, Authorization. (A wildcard CORS policy on a static site is only a problem if the site
+     itself hosts an API; here it is cosmetic but worth noting.)
+
+     • Static clientCache set to one year (365.00:00:00).
+
+ Companion markdown docs (DEPLOYMENT_GUIDE, WINDOWS_SERVER_DEPLOYMENT, IIS_FIX_GUIDE,
+ IIS_PORT_5173_SETUP, HTTPS_SETUP_GUIDE, O365_SETUP) describe the manual deployment path.
+
+
+ 16. Important Dependencies and Limitations
+ 16.1 Dependencies worth highlighting
+     • @azure/msal-browser / msal-react — carried as a dependency even though the active build does not
+     instantiate the provider. The bundle will still include MSAL in production.
+
+     • axios — declared but unused. Safe to remove.
+
+     • zustand — only two stores exist (useAuthStore, useStore); the latter is unused by production pages.
+
+     • tailwindcss-animate — only used via Tailwind config; no custom animations defined in the app.
+
+ 16.2 Limitations / smells observed in code
+     • Dashboard is static placeholder content — no real metrics.
+
+     • No central Authorization header; the frontend never sends a bearer token. Session trust is purely client-side
+     (isAuthenticated in Zustand persisted to localStorage).
+
+     • Password is sent in plaintext in the passwordHash field; name is misleading. The real hashing must happen
+     server-side.
+
+     • Each list page re-implements search, filter, sort, pagination from scratch — large duplication.
+
+     • No request cancellation on route change (no AbortController).
+
+     • No error boundary; a runtime error in a page unmounts the whole subtree with no fallback UI.
+
+     • No tests of any kind (no __tests__, no *.test.ts, no test runner in package.json).
+
+     • Home.tsx and About.tsx are orphaned.
+
+     • Full-object PUT on Projects and Customers risks lost-update bugs on concurrent edits.
+
+     • exampleApi in src/api/api.ts (/users) is scaffolding and unused.
+
+     • Access-Control-Allow-Origin: * in web.config is permissive; harmless for a static site but worth reviewing.
+
+ 17. Unverified Behavior and Questions Requiring
+ Backend Investigation
+
+Elevate 2.0 — Frontend Technical Documentation                                                                       Page 14
+ The following statements rely on backend behaviour that cannot be confirmed from the frontend alone. A new
+ engineer should verify these against the backend repository before relying on them.
+
+     • Does POST /api/User/login-with-password return a bearer token, cookie, or neither? The frontend stores
+     whatever JSON comes back as user and never looks for an access_token field. If the backend does set an
+     HttpOnly cookie, cross-origin deployments must enable credentials: 'include' — the current fetch wrapper does
+     not.
+
+     • How does the backend treat the plaintext passwordHash field? Is it actually a hash (client-side hashing not
+     visible in the code), or raw password?
+
+     • How does the backend recognise an O365-authenticated caller? The frontend forwards only { email }; no MSAL
+     id_token / access_token is sent to /api/User/login.
+
+     • What is the exact PermissionType enum on the server? Frontend sends snake_case strings (no_access,
+     view_basic, view_all, full_access) but a comment in RolePermissions.tsx says the API expects PascalCase. One
+     of the two is wrong.
+
+     • Does GET /api/User/{id} accept lowercase GUIDs? The frontend uppercases them before sending; verify the
+     backend doesn't care, or that this isn't working around a case-sensitive route.
+
+     • Does PUT /api/Project/{id} accept the full Project body including server-managed fields (createdAt, loggedHours,
+     …)? Full-object PUT is unusual.
+
+     • What rules define a project / customer as Needs Attention? The predicates live in the frontend; is that the
+     intended source of truth, or should the backend expose a dedicated endpoint?
+
+     • Is VITE_Login_API_BASE_URL (default https://localhost:7115/) a dead configuration, or a planned split that the
+     frontend has not yet migrated to?
+
+     • Does /api/RolePermission/bulk delete-and-replace, or append? The frontend's edit flow explicitly DELETEs each
+     existing permission first; if the bulk endpoint is already a replace, the deletions are redundant.
+
+     • Is there a backend-driven menu / permission check that should hide items the user cannot access? The sidebar
+     menu is hard-coded.
+
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                   Page 15
+ Appendix A — Conceptual Architecture
+                   ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+                   ■               Browser (SPA)                  ■
+                   ■                                              ■
+                   ■ index.html → main.tsx → <App/>               ■
+                   ■       ■                                      ■
+                   ■       ▼                                      ■
+                   ■ BrowserRouter                                ■
+                   ■       ■                                      ■
+                   ■   ■■■■■■■■■■■■■■■■■■■                            ■
+                   ■   ■                   ■                      ■
+                   ■ /login         ProtectedRoute                ■
+                   ■   (Login)           ■                        ■
+                   ■                     ▼                        ■
+                   ■                  Layout (Sidebar + header) ■
+                   ■                     ■                        ■
+                   ■           ■■■■■■■■■■■■■■■■■■■■■                  ■
+                   ■           ▼         ▼           ▼              ■
+                   ■     Dashboard List pages Edit pages          ■
+                   ■           ■         ■           ■             ■
+                   ■           ■■■■■■■■■■■■■■■■■■■■■                  ■
+                   ■                ▼          ▼                   ■
+                   ■           useAuthStore domainApi (api.ts) ■
+                   ■                ■               ■             ■
+                   ■                ■               ▼              ■
+                   ■                ■           ApiClient         ■
+                   ■                ■               ■             ■
+                   ■                ▼               ▼              ■
+                   ■        localStorage         fetch (HTTPS)    ■
+                   ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+                                    ■               ■
+                   (optional)       ■               ■
+                MSAL popup ■■■■■■■■■                   ▼
+                Azure AD / Entra          Backend REST (ASP.NET)
+                                          /api/User, /api/Project,
+                                          /api/Customer, /api/Role,
+                                          /api/RolePermission,
+                                          /api/Module, /api/Meeting
+                                                     ■
+                                                     ▼
+                                          Jira / Tempo / SOW-MSA
+                                          data sources (indirect)
+
+
+ Appendix B — Login Data-Flow Sequence
+  User              Login.tsx           useAuthStore         loginApi             Backend
+   ■ type creds        ■                      ■                  ■                    ■
+   ■■■■■■■■■■■■■■■■■■■■■■■■                        ■                    ■                  ■
+   ■ submit            ■                      ■                  ■                    ■
+   ■                   ■ login(u,p)           ■                  ■                    ■
+   ■                   ■■■■■■■■■■■■■■■■■■■■■■■                         ■                  ■
+   ■                   ■                      ■ verifyCreds(u,p) ■                    ■
+   ■                   ■                      ■■■■■■■■■■■■■■■■■■■■■                       ■
+   ■                   ■                      ■                  ■ POST /api/User/    ■
+   ■                   ■                      ■                  ■ login-with-password■
+   ■                   ■                      ■                  ■■■■■■■■■■■■■■■■■■■■■
+   ■                   ■                      ■                  ■    200 + user json ■
+   ■                   ■                      ■                  ■■■■■■■■■■■■■■■■■■■■■
+   ■                   ■                      ■ { success, data }■                    ■
+   ■                   ■                      ■■■■■■■■■■■■■■■■■■■■■                       ■
+   ■                   ■    set user,         ■                  ■                    ■
+   ■                   ■    isAuthenticated, ■                   ■                    ■
+   ■                   ■    persist()         ■                  ■                    ■
+   ■ useEffect sees    ■                      ■                  ■                    ■
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                 Page 16
+   ■ isAuthenticated →   ■                             ■                      ■                      ■
+   ■ navigate('/')      ■                             ■                      ■                      ■
+   ■■■■■ /dashboard ■■■■■■■                                ■                      ■                      ■
+
+
+ Appendix C — End of document
+ This document was produced by a read-only inspection of the Elevate 2.0 frontend repository at C:\Users\VivekPeer
+ alagudum\Downloads\kensium-solutions-kensium_elevate-2.0-225096fcc9b3\kensium-solutions-kensium_elevate-2.
+ 0-225096fcc9b3\ on 2026-10-30. No source files were modified. All technical claims cite real file paths and function
+ names from the src/ tree.
+
+
+
+
+Elevate 2.0 — Frontend Technical Documentation                                                                 Page 17
+

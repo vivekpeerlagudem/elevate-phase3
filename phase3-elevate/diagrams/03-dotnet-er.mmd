@@ -1,0 +1,10 @@
+erDiagram
+  CUSTOMER ||..o{ PROJECT : "projects.parent_id logical, NO FK [D]"
+  ROLE ||--o{ ROLE_PERMISSION : "role_id FK [D]"
+  MODULE ||--o{ ROLE_PERMISSION : "module_id FK [D]"
+  MODULE ||..o{ MODULE : "parent_id self, NO FK [D]"
+  ROLE ||..o{ ROLE_ASSIGNMENT : "role_id logical [D]"
+  ROLE_ASSIGNMENT }o..o{ USER : "match on department + job_title, NO FK [D]"
+  AI_PM_MS_MEETING ||..o{ AI_PM_LLM_MEETING_INSIGHT : "meeting_id logical, NO FK [D]"
+  AI_PM_MS_MEETING }o..o| USER : "user_uuid cross-database [D]"
+  AI_PM_MS_MEETING }o..o| PROJECT : "jira_contract_id cross-database [D]"

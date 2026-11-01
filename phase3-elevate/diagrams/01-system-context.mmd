@@ -1,0 +1,35 @@
+flowchart TB
+  U(["Kensium staff: PM, delivery, CS, leadership"])
+  subgraph FE["Elevate 2.0 frontend (React SPA, IIS) [D]"]
+    UI["Employees, Projects, Customers,<br/>Meetings list, Roles/Permissions,<br/>Needs Attention (client-side rules),<br/>Dashboard = static placeholder"]
+  end
+  subgraph NET["Elevate 2.0 API (ASP.NET Core 8) [D]"]
+    API["9 controllers, 32 endpoints,<br/>no auth enforced"]
+    DB1[("PostgreSQL 'elevate'<br/>customers, projects, users, RBAC")]
+    DB2[("PostgreSQL 'Meetings'<br/>ai_pm_ms_meeting,<br/>ai_pm_llm_meeting_insights")]
+  end
+  subgraph PY["Elevate AI Service (FastAPI + Celery) [D]"]
+    APP["FastAPI app<br/>~26 routers /api/v1, no auth"]
+    WK["Celery worker + Beat<br/>~70 tasks, 74-80 queues"]
+    RD[("Redis<br/>broker, dedup, locks")]
+    PG[("PostgreSQL (external)<br/>meetings, transcripts, insights,<br/>jsm_*, work_logs, ...")]
+  end
+  MS["Microsoft 365 / Graph<br/>Teams transcripts, calendars, mail, chat"]
+  RC["Recall AI<br/>external-meeting bots"]
+  JR["Jira / JSM"]
+  TP["Tempo"]
+  S3["AWS S3 (+SharePoint legacy)"]
+  LLM["LLM provider via LiteLLM<br/>(model UNKNOWN)"]
+  OT["SigNoz (OTel)"]
+  U --> UI --> API
+  API --> DB1 & DB2
+  MS -->|webhooks| APP
+  RC -->|webhooks| APP
+  JR -->|webhooks| APP
+  APP --> RD --> WK
+  WK --> MS & RC & JR & TP & S3 & LLM
+  WK --> PG
+  APP --> PG
+  WK -.-> OT
+  PG -. "link to 'elevate' / 'Meetings' DBs UNKNOWN [P3-041]" .- DB2
+  JR -. "customers/projects originate in Jira [D]" .-> DB1

@@ -1,0 +1,43 @@
+flowchart LR
+  subgraph User_Surfaces["User surfaces"]
+    S["Sessions<br/>Ask Pi | Group | On record | Secret"]
+    AM["Agents Module<br/>canvas, Needs Attention, In Progress"]
+    SIG["Signals Tool + Profile widget"]
+    GOV["AI Governance Hub"]
+  end
+  subgraph Pi_Harness["Pi harness (Planhat proprietary)"]
+    PI["Pi agent loop"]
+    MEM["Memory<br/>personal / team / role / org"]
+    SK["Skills<br/>built-in + custom"]
+    TOOLS["Pi tools<br/>Actions / Agents / Pages / Power"]
+    MCPP["MCP Plugins<br/>outbound tools"]
+  end
+  subgraph Models["LLM layer"]
+    SPEED["Speed model"]
+    ADV["Advanced model"]
+    BYO["BYO provider connection"]
+  end
+  subgraph Data["Planhat data and runtime"]
+    REC["Records: Company, End User, Conversation, custom models"]
+    KB["Knowledge Base Pages, Documents, files"]
+    AUTO["Automation runtime<br/>triggers, steps, HITL"]
+  end
+  EXT["External apps<br/>Slack, Drive, GitHub, custom MCP"]
+  EXTAI["External AI<br/>Claude, ChatGPT"]
+  S --> PI
+  PI --> MEM
+  PI --> SK
+  PI --> TOOLS
+  PI --> MCPP --> EXT
+  TOOLS --> REC
+  TOOLS --> AUTO
+  PI --> KB
+  PI --> SPEED
+  PI --> ADV
+  SPEED -.optional.-> BYO
+  ADV -.optional.-> BYO
+  AM --> AUTO
+  AUTO -->|"Use AI step"| Models
+  REC -->|"Conversations, every 5 min"| SIG
+  GOV -->|"Pi Data Access cap, tool toggles, model selection"| PI
+  EXTAI -->|"api.planhat.com/v1/mcp via OAuth Client"| REC

@@ -1,0 +1,83 @@
+erDiagram
+    PROJECT ||--o{ RISK : "has"
+    PROJECT ||--o{ ISSUE : "has"
+    PROJECT ||--o{ ACTION : "has"
+    PROJECT ||--o{ ASSUMPTION : "has"
+    PROJECT ||--o{ DECISION : "has"
+    PROJECT ||--o{ DEPENDENCY : "has"
+
+    MILESTONE ||--o{ RISK : "linked to"
+    MILESTONE ||--o{ ISSUE : "linked to"
+    MILESTONE ||--o{ ACTION : "linked to"
+    MILESTONE ||--o{ ASSUMPTION : "linked to"
+    MILESTONE ||--o{ DECISION : "linked to"
+    MILESTONE ||--o{ DEPENDENCY : "linked to"
+
+    ACCOUNT ||--o{ RISK : "linked to"
+    ACCOUNT ||--o{ ISSUE : "linked to"
+    ACCOUNT ||--o{ ACTION : "linked to"
+    ACCOUNT ||--o{ ASSUMPTION : "linked to"
+    ACCOUNT ||--o{ DECISION : "linked to"
+    ACCOUNT ||--o{ DEPENDENCY : "linked to"
+
+    OPPORTUNITY ||--o{ RISK : "linked to"
+    OPPORTUNITY ||--o{ ISSUE : "linked to"
+    OPPORTUNITY ||--o{ ACTION : "linked to"
+    OPPORTUNITY ||--o{ ASSUMPTION : "linked to"
+    OPPORTUNITY ||--o{ DECISION : "linked to"
+    OPPORTUNITY ||--o{ DEPENDENCY : "linked to"
+
+    RISK }o--o| ISSUE : "Issue lookup / Risk lookup"
+
+    RISK {
+        text Risk_Name
+        picklist Status
+        picklist Impact
+        picklist Likelihood
+        formula Severity
+        lookup Project
+        lookup Issue
+    }
+
+    ISSUE {
+        text Issue_Name
+        picklist Status
+        picklist Impact
+        picklist Priority
+        formula Severity
+        lookup Project
+        lookup Risk
+    }
+
+    ACTION {
+        text Action_Name
+        picklist Status
+        date Completed_Date
+        lookup Project
+    }
+
+    ASSUMPTION {
+        text Assumption_Name
+        picklist Status
+        picklist Impact
+        picklist Likelihood
+        formula Severity
+        lookup Project
+    }
+
+    DECISION {
+        text Decision_Name
+        picklist Status
+        picklist Impact
+        picklist Priority
+        formula Severity
+        date Approved_Date
+        lookup Project
+    }
+
+    DEPENDENCY {
+        text Dependency_Name
+        picklist Status
+        text Impact_Analysis
+        lookup Project
+    }

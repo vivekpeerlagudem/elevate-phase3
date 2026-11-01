@@ -1,0 +1,30 @@
+sequenceDiagram
+  autonumber
+  participant Beat as Celery Beat
+  participant G as Microsoft Graph
+  participant API as AI service (FastAPI)
+  participant R as Redis
+  participant W as Celery worker
+  participant DB as PostgreSQL
+  participant RC as Recall AI
+  Beat->>W: daily calendar sync [D]
+  W->>G: GET calendarView per user [D]
+  W->>DB: calendars, meetings rows [D]
+  alt organizer inside tenant
+    W->>G: POST transcript subscription [D]
+    G->>API: webhook: transcript created [D]
+    API->>R: SET NX dedup 5 min [D]
+    API-->>G: 202 [D]
+    API->>W: process_meeting_transcript_notification [D]
+    W->>DB: check recording override / Do-Not-Record [D]
+    W->>G: GET transcript metadata + VTT (delegated token) [D]
+    W->>DB: upsert transcript [D]
+    W->>W: chord(recording URL, attendance) then post-processing [D]
+  else external organizer
+    W->>RC: create bot [D]
+    RC->>API: webhook recording.done (signature NOT verified) [D]
+    API->>W: process_recall_webhook [D]
+    W->>RC: GET transcript + participants [D]
+    W->>DB: transcript (raw JSON) [D]
+  end
+  W->>W: S3 upload (+30 s), insights (+60 s) [D]

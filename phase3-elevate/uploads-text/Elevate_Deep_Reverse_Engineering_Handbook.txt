@@ -1,0 +1,2140 @@
+# Elevate AI Service — Deep Reverse-Engineering Handbook
+
+**Report Date:** October 21, 2026
+**Scope:** `paie-kensium_elevate-ai-service` repository — read-only
+source analysis
+**Author:** Architecture review for onboarding (Product Development
+Engineering)
+**Confidence Labels:** CONFIRMED = source-verified | INFERRED = strongly
+suggested | UNKNOWN = cannot determine | NOT FOUND = not identified in
+reviewed files
+
+---
+
+## Table of Contents
+
+1. [Executive Summary](#1-executive-summary)
+2. [Repository Inventory](#2-repository-inventory)
+3. [Architecture Overview](#3-architecture-overview)
+4. [File-to-File Dependency Analysis](#4-file-to-file-dependency-
+analysis)
+5. [Complete API Lifecycle](#5-complete-api-lifecycle)
+6. [FastAPI and Backend Fundamentals](#6-fastapi-and-backend-
+fundamentals)
+7. [Database and Data Lifecycle](#7-database-and-data-lifecycle)
+8. [Redis, Celery, and Background Processing](#8-redis-celery-and-
+background-processing)
+9. [AI and LLM Execution Lifecycle](#9-ai-and-llm-execution-lifecycle)
+10. [Microsoft Graph, Teams, and External Integrations](#10-microsoft-
+graph-teams-and-external-integrations)
+11. [End-to-End Business Workflows](#11-end-to-end-business-workflows)
+12. [Application and Runtime Lifecycle](#12-application-and-runtime-
+lifecycle)
+13. [Docker, Configuration, and Deployment](#13-docker-configuration-and-
+deployment)
+14. [Testing, Quality, and Failure Analysis](#14-testing-quality-and-
+failure-analysis)
+15. [Security and Reliability Review](#15-security-and-reliability-
+review)
+16. [Reference Materials](#16-reference-materials)
+17. [Glossary](#17-glossary)
+18. [Open Questions and Verification Checklist](#18-open-questions-and-
+verification-checklist)
+19. [Appendix: File Responsibility Catalogue](#19-appendix-file-
+responsibility-catalogue)
+
+---
+
+## 1. Executive Summary
+
+**Kensium Elevate AI** is a FastAPI + Celery backend service that:
+
+1. **Captures Microsoft Teams meetings** — subscribes to MS Graph
+webhooks for transcript events, downloads VTT transcripts, and stores
+recordings in AWS S3 (or SharePoint legacy).
+2. **Captures external-platform meetings** — for meetings organized
+outside the MS tenant, deploys Recall AI recording bots to join Zoom,
+Google Meet, and other platforms.
+3. **Generates LLM-powered insights** — runs each transcript through 7
+analysis types (summary, minutes, key notes, action items, commitments,
+sentiment, upsell opportunities) plus cross-entity AI insights (customer
+sentiment trends, project alerts).
+4. **Syncs Jira/JSM data** — periodically fetches accounts, customers,
+projects, licenses, and tickets from Jira Service Management; performs
+real-time webhook-driven ticket sync with LLM sentiment analysis.
+5. **Syncs Tempo work logs** — incremental 15-minute sync from the Tempo
+API.
+6. **Provides recording control** — users can stop/start recording per
+occurrence or series, with Do Not Record domain enforcement.
+7. **Serves a REST API** — 26 routers under `/api/v1`, consumed by the
+Elevate web frontend (separate repo).
+
+**Technology Stack (CONFIRMED):**
+- Python 3.13+ / FastAPI / Uvicorn
+- Celery 5 + Redis 7.4 (broker) + PostgreSQL (result backend)
+- SQLModel/SQLAlchemy ORM + Alembic migrations
+- LiteLLM (LLM abstraction — actual provider UNKNOWN from code)
+- httpx (async HTTP client)
+- boto3 (AWS S3)
+- Jinja2 (LLM prompt + email templates)
+- Docker Compose (5 services) + OpenTelemetry → SigNoz
+- Poetry (dependency management)
+
+**Scale indicators:** ~70+ Celery tasks, ~80 dedicated queues, 38+ ORM
+models, ~70 Alembic migrations, 180 test files, 11 LLM prompt template
+sets.
+
+---
+
+## 2. Repository Inventory
+
+### 2.1 Top-Level Structure
+
+```
+paie-kensium_elevate-ai-service/
+├── src/                        # Application source (main package)
+│   ├── main.py                 # FastAPI app entry point
+│   ├── core/                   # Config (Pydantic BaseSettings) + Redis
+client
+│   ├── db_engine/              # SQLAlchemy engine + session management
+│   ├── models/                 # 38+ SQLModel ORM models
+│   ├── schemas/                # Pydantic request/response schemas
+│   ├── routes/                 # FastAPI router definitions (thin
+controllers)
+│   ├── handlers/               # Business logic (called by routes)
+│   ├── repositories/           # Database CRUD layer
+│   ├── services/               # External API clients
+│   ├── worker/                 # Celery app, tasks, utils, signals
+│   ├── templates/              # Jinja2 templates (LLM prompts + emails)
+│   ├── utils/                  # Shared utilities (prompt rendering,
+email)
+│   ├── middleware/             # ASGI middleware (logging)
+│   ├── logger/                 # Structured JSON logging config
+│   └── ddl/                    # SQL functions + seed data scripts
+├── migrations/                 # Alembic migration versions
+├── tests/                      # Pytest test suite (180 files)
+├── docker/                      # Container entrypoint scripts
+├── redis/                       # Redis container entrypoint (ACL setup)
+├── otel-agent/                  # OpenTelemetry Collector config
+├── docker-compose.yml           # 5-service orchestration
+├── Dockerfile                   # Multi-stage build (builder → dev /
+prod)
+├── pyproject.toml               # Poetry project manifest
+├── alembic.ini                  # Alembic config pointer
+└── .env.example                 # Environment variable template
+```
+
+### 2.2 Source Code Statistics
+
+| Category | Count |
+|---|---|
+| Python source files (src/) | ~200+ |
+| ORM models | 38+ |
+| API routers registered | 26 |
+| Celery task files | ~70+ |
+| Alembic migrations | ~70 |
+| Test files | 180 |
+| LLM prompt template sets | 11 |
+| Jinja2 email templates | 1 (meeting_completed) |
+
+---
+
+## 3. Architecture Overview
+
+### 3.1 High-Level Architecture Diagram
+
+```
+┌────────────────────────────────────────────────────────────────────────
+─┐
+│                          EXTERNAL CLIENTS
+│
+│ ┌──────────┐    ┌──────────────┐    ┌───────────┐   ┌──────────────┐     │
+│ │ Elevate │     │ MS Graph      │   │ Recall AI │   │ Jira         │     │
+│ │ Frontend │    │ Webhooks      │   │ Webhooks │    │ Webhooks     │     │
+│ │ (Web UI) │    │ (transcripts,│    │ (bot      │   │ (JSM ticket │      │
+│ │           │   │ user events)│     │ status) │     │ events)      │     │
+│ └────┬─────┘    └──────┬───────┘    └─────┬─────┘   └──────┬───────┘     │
+└───────┼────────────────┼─────────────────┼────────────────┼────────────
+┘
+        │                 │                 │                │
+        ▼                 ▼                 ▼                ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│                     FASTAPI APPLICATION (port 8000)
+│
+│                                                                          │
+│ src/main.py → 26 routers under /api/v1                                  │
+│ ┌─────────────────────────────────────────────────────────────────┐ │
+│ │ Middleware: LoggingMiddleware → CORSMiddleware                      │
+│
+│ └─────────────────────────────────────────────────────────────────┘ │
+│ ┌─────────────────────────────────────────────────────────────────┐ │
+│ │ Routes → Handlers → Repositories → PostgreSQL                      │ │
+│ │                 ↓                                                  │ │
+│ │          send_task_with_trace() → Redis (Celery broker)          │ │
+│ └─────────────────────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────────────┘
+        │                                    │
+        ▼                                    ▼
+┌──────────────┐                  ┌─────────────────────────┐
+│   Redis 7.4 │◄─── broker ────►│    CELERY WORKER          │
+│ (db 0)       │                  │   src/worker/app.py       │
+│ + dedup      │                  │   ~70+ tasks              │
+│ + locks      │                  │   ~80 dedicated queues    │
+│              │                  │                            │
+└──────────────┘                  │   worker/utils/ → logic │
+                                  │   ├── MS Graph API        │
+                                  │   ├── Recall AI API       │
+                                  │   ├── Jira API            │
+                                  │   ├── Tempo API           │
+                                  │   ├── LiteLLM → LLM       │
+                                  │   ├── AWS S3               │
+                                  │   └── Repositories → DB │
+                                  └─────────────┬────────────┘
+                                                 │
+┌──────────────────────────────┐                 ▼
+│   CELERY BEAT (scheduler)    │         ┌──────────────┐
+│   14 periodic jobs           │         │ PostgreSQL    │
+│   (daily syncs, 2-min to    │         │ (primary DB │
+│    6-hour intervals)         │         │ + Celery      │
+│   → enqueues tasks to Redis │          │   results)    │
+└──────────────────────────────┘         └──────────────┘
+
+┌──────────────────────────────┐
+│   OTEL AGENT (sidecar)        │
+│   Receives OTLP traces,     │
+│   metrics, logs               │
+│   → exports to SigNoz       │
+└──────────────────────────────┘
+```
+
+### 3.2 Layered Architecture (CONFIRMED from source)
+
+The application follows a strict layered architecture:
+
+1. **Routes** (`src/routes/`) — FastAPI router definitions. Thin
+controllers that parse HTTP input, call handlers, return responses. No
+business logic.
+2. **Handlers** (`src/handlers/`) — Business logic orchestration. Load
+data from repositories, validate, apply rules, enqueue Celery tasks.
+Handlers own the decision of what to do.
+3. **Repositories** (`src/repositories/`) — Database access layer. Pure
+CRUD operations on specific models. Own commit/rollback.
+4. **Services** (`src/services/`) — External API clients. Make HTTP calls
+to MS Graph, Jira, Recall AI, Tempo, AWS S3, LLM. No database access.
+5. **Worker Tasks** (`src/worker/tasks/`) — Thin Celery task wrappers.
+Each task function delegates immediately to a corresponding
+`worker/utils/` function.
+6. **Worker Utils** (`src/worker/utils/`) — Business logic for background
+processing. The real implementation behind each task. Call services +
+repositories.
+7. **Models** (`src/models/`) — SQLModel/SQLAlchemy ORM definitions.
+Define table schema.
+8. **Schemas** (`src/schemas/`) — Pydantic models for request/response
+validation and serialization.
+
+### 3.3 Component Responsibility Table
+
+| Component | Responsibility | Key Entry Points |
+|---|---|---|
+| FastAPI App | HTTP request handling, routing, CORS, health checks |
+`src/main.py` |
+| Logging Middleware | Inject trace_id + request_id into every request
+context | `src/middleware/logging.py` |
+| Config | Pydantic BaseSettings loading all env vars |
+`src/core/config.py` |
+| DB Engine | SQLAlchemy engine, session management (FastAPI + Celery) |
+`src/db_engine/db.py` |
+| Redis Client | Connection pool, health check | `src/core/redis.py` |
+| Celery App | Task registration, Beat schedule, broker config |
+`src/worker/app.py` |
+| Task Routing | Queue-per-task mapping | `src/worker/routing.py` |
+| Celery Signals | Auto-inject trace_id into task logging context |
+`src/worker/signals.py` |
+| LiteLLM Service | LLM abstraction — completion calls with token
+tracking | `src/services/llm/litellm.py` |
+| Prompt Renderer | Jinja2 template rendering for system+user messages |
+`src/utils/prompts.py` |
+| Email Renderer | Jinja2 autoescaped HTML email rendering |
+`src/utils/emails.py` |
+| OTel Agent | Trace/metric/log collection and export to SigNoz | `otel-
+agent/config.yaml` |
+
+---
+
+## 4. File-to-File Dependency Analysis
+
+### 4.1 Core Import Dependency Chains
+
+**4.1.1 API Request Path (e.g., recording control)**
+
+```
+src/routes/recording_control.py
+    imports → src/handlers/recording_control.py
+        imports → src/core/config.py (feature flags)
+        imports → src/db_engine/db.py (db_session)
+        imports → src/repositories/meeting_recording_override.py (CRUD)
+        imports → src/repositories/ms/calendars.py (calendar lookup)
+        imports → src/repositories/recall_ai/recall_ai_bots.py (bot
+lookup)
+        imports → src/worker/tasks/recording_control/*.py (task dispatch)
+        imports → src/worker/utils/ms/common/event_email_filter_utils.py
+        imports → src/worker/utils/ms/common/tenant_membership_utils.py
+        imports →
+src/worker/utils/recording_control/recording_policy_utils.py
+        imports → src/worker/utils/task_utils.py (send_task_with_trace)
+```
+
+**4.1.2 Webhook Processing Path (MS transcript notification)**
+
+```
+src/routes/ms/webhooks/meeting_transcripts.py
+    imports → src/handlers/ms/webhooks/meeting_transcripts.py
+        imports → src/core/redis.py (Redis client for dedup)
+        imports →
+src/worker/tasks/ms/process_meeting_transcript_notification.py
+        imports → src/worker/utils/task_utils.py
+
+src/worker/tasks/ms/process_meeting_transcript_notification.py
+     delegates →
+src/worker/utils/ms/process_meeting_transcript_notification.py
+         imports → src/services/ms/graph/meeting_transcripts.py (MS Graph
+API)
+         imports → src/services/ms/graph/meetings.py (meeting details)
+         imports → src/repositories/ms/meetings.py (DB lookup)
+         imports → src/repositories/ms/transcripts.py (DB store)
+         imports →
+src/worker/tasks/ms/process_transcript_post_processing.py
+```
+
+**4.1.3 LLM Insight Generation Path**
+
+```
+src/handlers/llm/meeting_insights.py
+    maps insight_type → Celery task
+    imports → src/worker/tasks/llm/process_meeting_summary.py (and 6
+others)
+    imports → src/worker/utils/task_utils.py
+
+src/worker/tasks/llm/process_meeting_summary.py
+    delegates → src/worker/utils/llm/process_meeting_summary.py
+        imports → src/repositories/ms/transcripts.py (load transcript
+text)
+        imports → src/utils/prompts.py (render_messages)
+        imports → src/services/llm/litellm.py (LLM call)
+        imports → src/repositories/llm/meeting_insights.py (store result)
+```
+
+**4.1.4 Celery Task Dispatch Path**
+
+```
+Any handler or worker/utils function
+    → src/worker/utils/task_utils.py::send_task_with_trace()
+        reads → src/logger/config.py::trace_id_var (context var)
+        calls → task.apply_async(args, kwargs, countdown=...)
+        → Redis broker (Kombu queue)
+        → src/worker/app.py picks up task
+        → src/worker/signals.py::task_prerun_handler injects trace
+context
+        → src/worker/tasks/<module>.py (thin wrapper)
+        → src/worker/utils/<module>.py (business logic)
+```
+
+### 4.2 Shared Dependencies (imported by many modules)
+
+| Module | Used By | Purpose |
+|---|---|---|
+| `src/core/config.py` | Nearly all modules | Feature flags, API keys, DB
+URLs |
+| `src/db_engine/db.py` | All handlers, all worker/utils | Session
+creation |
+| `src/logger/logger.py` | All modules | Structured JSON logging |
+| `src/worker/utils/task_utils.py` | All handlers that dispatch tasks |
+Trace-injecting task dispatch |
+| `src/core/redis.py` | Webhook handlers, on-demand, dedup | Redis client
+singleton |
+
+### 4.3 Circular Dependencies
+
+**NOT FOUND.** The codebase follows a strict one-directional import
+pattern: routes → handlers → repositories/services. Worker tasks → worker
+utils → repositories/services. No circular imports detected.
+
+### 4.4 Dynamic Import / Framework Registration
+
+- **Celery task discovery:** `src/worker/app.py` explicitly lists all
+task modules in the `include` array (CONFIRMED). No autodiscover.
+- **Alembic model discovery:** `migrations/env.py` imports
+`src/models/__init__.py` which imports all 38+ model classes (CONFIRMED).
+- **FastAPI router registration:** `src/main.py` explicitly imports and
+includes all 26 routers (CONFIRMED).
+
+---
+
+## 5. Complete API Lifecycle
+
+### 5.1 API Inventory
+
+The application registers **26 routers** under `/api/v1` plus 3 health-
+check endpoints at root level. The routers are organized by domain:
+
+#### Health Checks (root-level)
+
+| Method | Path | Handler | Purpose |
+|---|---|---|---|
+| GET | `/health` | inline | Returns `{"status": "ok"}` |
+| GET | `/health/db` | `test_connection()` | Tests PostgreSQL
+connectivity |
+| GET | `/health/redis` | `test_redis_connection()` | Tests Redis
+connectivity |
+
+#### Microsoft Graph / Teams
+
+| Router Module | Prefix (INFERRED from module names) | Purpose |
+|---|---|---|
+| `ms/calendar` | `/api/v1/ms/calendar` | Calendar event operations,
+trigger meeting processing |
+| `ms/meetings` | `/api/v1/ms/meetings` | Attendance reports, recording
+copies, sync missed transcripts |
+| `ms/users` | `/api/v1/ms/users` | User sync and lookup |
+| `ms/subscriptions` | `/api/v1/ms/subscriptions` | Create/delete MS
+Graph webhook subscriptions |
+| `ms/auth/oauth` | `/api/v1/ms/auth` | OAuth2 authorization code flow |
+| `ms/webhooks/meeting_transcripts` | `/api/v1/ms/webhooks/meeting-
+transcripts` | MS Graph transcript webhook receiver |
+| `ms/webhooks/meet_now` | `/api/v1/ms/webhooks/meet-now` | Tenant-wide
+Meet Now transcript webhook |
+| `ms/webhooks/user_events` | `/api/v1/ms/webhooks/user-events` | MS
+Graph calendar event change webhook |
+| `ms/chat_notices` | `/api/v1/ms/chat-notices` | Pre-meeting chat
+notices in Teams |
+
+#### LLM / AI
+
+| Router Module | Purpose |
+|---|---|
+| `llm/meeting_insights` | Trigger meeting insight generation (7 types) |
+| `llm/ai_insights` | Trigger cross-entity AI insights (sentiment trends,
+project alerts) |
+| `llm/meeting_upsell_opportunities` | Upsell purge, regeneration, per-
+transcript purge |
+| `llm/transcript_stage_insights` | Sales funnel stage detection per
+transcript |
+
+#### Jira / JSM
+
+| Router Module | Purpose |
+|---|---|
+| `jira/accounts` | Jira account sync |
+| `jira/customers` | Customer sync |
+| `jira/projects` | Project sync |
+| `jira/licenses` | License sync |
+| `jira/jsm_tickets` | JSM ticket operations |
+| `jira/webhooks/jsm_ticket_events` | Jira webhook receiver for ticket
+events |
+
+#### Recordings & Control
+
+| Router Module | Purpose |
+|---|---|
+| `recording_control` | Stop/start recording per occurrence or series |
+| `on_demand_recording` | Trigger ad-hoc Recall AI bot for a meeting in
+progress |
+| `aws/recordings` | S3 recording access URLs, retry uploads, SharePoint-
+to-S3 migration |
+| `transcripts` | Transcript purge |
+
+#### External
+
+| Router Module | Purpose |
+|---|---|
+| `recall_ai/webhooks/status` | Recall AI webhook receiver (bot status
+changes) |
+| `tempo/work_logs` | Tempo worklog operations |
+
+### 5.2 Detailed API Request Trace: Transcript Webhook
+
+This traces the most critical workflow — how a Teams meeting transcript
+enters the system.
+
+**Step 1: MS Graph sends POST to `/api/v1/ms/webhooks/meeting-
+transcripts`**
+
+```
+src/routes/ms/webhooks/meeting_transcripts.py
+  → Route receives POST with JSON payload containing notification(s)
+  → Checks for "validationToken" query param (MS Graph subscription
+validation)
+  → If validation: returns token as plaintext (HTTP 200)
+  → If notification: calls handler
+```
+
+**Step 2: Handler deduplicates and dispatches**
+
+```
+src/handlers/ms/webhooks/meeting_transcripts.py
+  → process_meeting_transcript_notifications(payload)
+  → For each notification in payload["value"]:
+    1. Extract resource path (e.g.,
+"users('{uid}')/onlineMeetings('{mid}')/transcripts('{tid}')")
+    2. Regex match to extract userId, meetingId, transcriptId
+    3. Redis SET NX with 5-min TTL for dedup key
+"ms_webhook_transcript:{subscriptionId}:{resource}"
+    4. If duplicate → skip
+    5. If new →
+send_task_with_trace(process_meeting_transcript_notification,
+                                     user_id=..., meeting_id=...,
+transcript_id=...)
+  → Returns {"status": "completed", "total": N, "duplicates": M,
+"workers_queued": K}
+  → HTTP 202 returned to MS Graph
+```
+
+**Step 3: Celery worker processes transcript**
+
+```
+src/worker/tasks/ms/process_meeting_transcript_notification.py
+  → @celery_app.task wrapper
+  → Calls
+src/worker/utils/ms/process_meeting_transcript_notification.py::process()
+
+The process() function:
+  1. _fetch_meeting_from_db(): Load meeting row by meeting_id
+     → Returns (parent_id, organizer_user_id) or (None, None) if not
+found
+  2. Check recording_control: is this meeting's recording stopped?
+     → If stopped: return {"status": "skipped", "reason":
+"recording_stopped"}
+  3. Check Do Not Record domain list
+     → If matched: return {"status": "skipped", "reason":
+"do_not_record"}
+  4. _fetch_transcript_metadata(): GET transcript metadata from MS Graph
+     → Uses delegated token for the organizer's user_id
+     → Returns metadata dict or None on failure
+  5. _fetch_transcript_content(): GET transcript VTT content from MS
+Graph
+     → Returns VTT string or None on failure
+  6. _prepare_transcript_row(): Map metadata + content to DB row dict
+  7. _store_transcript_in_db(): Upsert transcript row via repository
+  8. _queue_transcript_post_processing(): Build Celery chord:
+     Header tasks (parallel):
+       - process_meeting_recording_url (fetch recording URL from MS
+Graph)
+       - process_meeting_attendance_report (fetch attendance from MS
+Graph)
+     Callback:
+       - process_transcript_post_processing (orchestrates next steps)
+```
+
+**Step 4: Post-processing callback**
+
+```
+src/worker/utils/ms/process_transcript_post_processing.py::process_callba
+ck()
+  1. backfill_meet_now_actuals() — fill real times for ad-hoc meetings
+  2. Queue recording upload task (S3 or SharePoint based on config)
+     → countdown=30s
+  3. Queue process_meeting_insights task
+     → countdown=60s
+```
+
+**Step 5: Meeting insights generation (see Section 9)**
+
+### 5.3 Detailed API Request Trace: Recording Control (Stop)
+
+```
+POST /api/v1/recording-control
+Body: {"action": "stop", "scope": "occurrence", "event_id": "..."}
+
+src/routes/recording_control.py → handler
+
+src/handlers/recording_control.py::handle_recording_action()
+  1. Feature flag check: config.recording_control_enabled → 503 if off
+  2. _load_calendar_event(event_id) → 404 if not found
+  3. _resolve_scope(calendar, "occurrence"):
+     - If calendar.type == "singleInstance" → SCOPE_SINGLE
+     - Else → SCOPE_OCCURRENCE (with ical_uid + series_master_id)
+  4. _enforce_threshold(calendar, scope):
+     - If within recording_action_cutoff_seconds before start → 409
+     - Series scope is exempt
+  5. _reject_start_if_do_not_record(): N/A for stop
+  6. _detect_platform(calendar):
+     - If tenant_routing_enabled + organizer_email:
+       → captured_lane() checks existing capture
+       → is_organizer_in_tenant() checks MS tenant membership
+     - Else: check if Recall bot exists for this meeting
+     - Returns "ms" or "recall"
+  7. _apply_stop(platform, scope, ical_uid, series_master_id,
+meeting_id):
+     MS platform:
+       - Write STATE_DISABLED override to meeting_recording_override
+table
+       - mark_ms_target_due() (flag for reconcile sweep)
+       - Queue process_recording_reconcile_sweep task
+     Recall platform:
+       - Write override
+       - Queue process_recording_bot_cancel per meeting
+  8. Return {"platform": "ms", "action": "stop", "scope": "occurrence",
+"applied": "queued"}
+```
+### 5.4 Detailed API Request Trace: On-Demand Recording
+
+```
+POST /api/v1/on-demand-recording
+Body: {"email": "user@kensium.com", "join_url":
+"https://teams.microsoft.com/..."}
+
+src/handlers/on_demand_recording.py::handle_on_demand_recording()
+  1. Acquire Redis lock (per join_url, 120s TTL) with Lua compare-and-
+delete unlock
+     → 429 if lock held by another request
+  2. _validate_requester(email) → 422 if user not found or inactive
+  3. classify_join_url() → determine platform (Teams, Zoom, Google Meet,
+etc.)
+  4. Classify tenancy:
+     - If internal organizer → 409 "captured automatically"
+  5. Check existing bot → 409 if active bot exists
+  6. Check recording_control override → 409 if stopped
+  7. Check Do Not Record domain list → 409 if matched
+  8. Synchronously call process_on_demand_bot_create():
+     → POST to Recall AI API to create bot
+     → Store bot row in recall_ai_bots table
+  9. Release Redis lock
+  10. Return 201 with bot details
+```
+
+---
+
+## 6. FastAPI and Backend Fundamentals
+
+### 6.1 Application Creation (CONFIRMED: `src/main.py`)
+
+```python
+app = FastAPI(title="Elevate AI Service")
+```
+
+No lifespan hooks, no startup/shutdown events, no custom exception
+handlers are registered at the app level. The application relies on
+Alembic (run in the entrypoint script) for database initialization.
+
+### 6.2 Router Registration (CONFIRMED: `src/main.py:59-87`)
+
+A single `APIRouter(prefix="/api/v1")` is created, all 26 domain routers
+are included into it, then it is included into the app. No authentication
+dependencies are applied at the router level.
+
+### 6.3 Middleware Stack (CONFIRMED: `src/main.py:54-57`)
+
+Order (outermost first):
+1. **LoggingMiddleware** — `BaseHTTPMiddleware` subclass. Injects
+`trace_id` (from `X-Trace-ID` header or UUID) and `request_id` (UUID)
+into context vars. Logs request start/end. Adds `X-Trace-ID` and `X-
+Request-ID` to response headers. Skips `/health`.
+2. **CORSMiddleware** — Allows origins: `http://183.82.120.94:4173` and
+`https://elevate.kensium.com`. All methods, all headers.
+
+### 6.4 Pydantic Settings (CONFIRMED: `src/core/config.py`)
+`Config(BaseSettings)` loads all configuration from environment
+variables. Key groups:
+
+- **App:** `APP_ENV`, `LOG_LEVEL`, `SERVICE_NAME`
+- **Database:** PostgreSQL connection string components
+- **Redis:** host, port, username, password
+- **MS Graph:** `ms_tenant_id`, `ms_client_id`, `ms_client_secret`,
+`ms_default_sharepoint_url`
+- **Jira:** `jira_url`, `jira_username`, `jira_password`,
+`jira_jsm_project_key`
+- **Tempo:** `tempo_api_token`
+- **LLM:** `llm_model`, `llm_temperature`, `upsell_llm_model`
+- **Recall AI:** `recall_api_key`, `recall_bot_name`
+- **AWS S3:** `aws_access_key_id`, `aws_secret_access_key`,
+`aws_s3_bucket_name`, `aws_s3_region`
+- **Feature Flags:** `recording_control_enabled`,
+`recording_settings_enabled`, `ms_tenant_routing_enabled`,
+`ms_tenant_transcripts_enabled`, `meeting_notification_enabled`
+
+Singleton via `@lru_cache` on `get_config()`.
+
+### 6.5 Dependency Injection (CONFIRMED)
+
+The only FastAPI dependency identified is `get_session()` from
+`src/db_engine/db.py`, which is a generator yielding a SQLAlchemy Session
+for use in route handlers via `Depends(get_session)`.
+
+**NOT FOUND:** No authentication dependency injection. No custom
+dependencies for authorization, rate limiting, or API key validation. See
+Security section.
+
+### 6.6 Request/Response Schemas (CONFIRMED: `src/schemas/`)
+
+Pydantic models organized by domain: `ms/`, `llm/`, `jira/`, `aws/`,
+`tempo/`, `on_demand_recording.py`, `transcripts.py`. Used in routes for
+request body validation and response serialization.
+
+### 6.7 Exception Handling
+
+- Handlers raise `HTTPException` for business-rule violations (404, 400,
+409, 503).
+- No global exception handler registered at the app level (NOT FOUND).
+- Worker tasks use try/except with structured logging. Task failures are
+caught by Celery's `task_failure` signal handler.
+
+### 6.8 Async vs Sync (CONFIRMED)
+
+- **Routes:** Mix of `async def` and `def`. FastAPI runs sync handlers in
+a threadpool.
+- **Handlers:** Mostly synchronous. Some use `async` for S3 presigned URL
+generation.
+- **Worker tasks:** All synchronous (Celery tasks). Worker utils may use
+`asyncio.run()` internally for async service calls (e.g., MS Graph httpx
+calls).
+- **Services:** MS Graph and AWS clients use `httpx.AsyncClient`. LiteLLM
+uses `await litellm.acompletion()`.
+
+---
+## 7. Database and Data Lifecycle
+
+### 7.1 Technology (CONFIRMED)
+
+- **Database:** PostgreSQL via `psycopg` (v3 driver, async-compatible)
+- **ORM:** SQLModel (SQLAlchemy + Pydantic hybrid)
+- **Migrations:** Alembic with ~70 version files
+- **Connection pool:** size=5, max_overflow=10, pool_recycle=1800s
+
+### 7.2 Session Management (CONFIRMED: `src/db_engine/db.py`)
+
+Two patterns:
+
+1. **`get_session()`** — FastAPI dependency (generator). Yields a
+Session, auto-closes on request completion. Used in routes.
+2. **`db_session()`** — Context manager. Used in handlers and Celery
+worker utils. Opens a new session, yields it, closes on exit.
+
+**Important:** Sessions only manage lifecycle. Repositories own
+`db.commit()` and `db.rollback()`.
+
+### 7.3 Entity-Relationship Diagram
+
+```
+┌───────────────┐       ┌──────────────────┐      ┌──────────────────────┐
+│ jira_accounts│        │    customers       │     │     projects         │
+│ (JiraAccount)│        │   (Customer)       │     │    (Project)         │
+│               │       │   jira_account_id │──FK──│                      │
+└───────────────┘       └───────┬──────────┘      └──────────┬───────────┘
+                                │                            │
+                       ┌────────┘                            │ parent_id
+(SET NULL)
+                       ▼                                    ▼
+                ┌──────────────┐                   ┌────────────────┐
+                │ jsm_tickets │                    │    meetings    │
+                │(JsmTicket)   │                   │   (Meeting)    │
+                │ customer_id │                    │ organizer_user_│
+                │              │                   │ id, attendees, │
+                └──────┬───────┘                   │ join_urls      │
+                       │                           └───────┬────────┘
+                       ▼                                   │ parent_id
+(CASCADE)
+              ┌──────────────┐                             ▼
+              │jsm_ticket_   │                     ┌────────────────┐
+              │comments      │                     │ transcripts    │
+              │(JsmTicket-   │                     │ (Transcript)   │
+              │ Comment)     │                     │ content (VTT), │
+              └──────┬───────┘                     │ recording_urls │
+                     │                             └───────┬────────┘
+                     ▼                                     │ parent_id
+(CASCADE on all below)
+              ┌──────────────┐                             │
+              │jsm_ticket_   │
+┌───────────────────┼──────────────────┐
+              │sentiments    │        │                    │
+│
+                   │(JsmTicket-   │           ▼                            ▼
+▼
+              │ Sentiment)   │        ┌─────────────┐        ┌───────────────┐
+┌──────────────┐
+              └──────────────┘        │meeting_       │      │meeting_action_│
+│meeting_      │
+                                      │insights          │   │items            │
+│commitments       │
+                                      │(Meeting-         │   │(MeetingAction-│
+│(Meeting-         │
+                                      │ Insight)         │   │ Item)           │   │
+Commitment)    │
+                                      └─────────────┘        └───────────────┘
+└──────────────┘
+
+│
+                   ┌────────────────┐     ┌───────────────┐       ┌────────────────┐
+│
+                   │meeting_          │   │meeting_upsell_ │       │transcript_        │
+│
+                   │sentiments        │   │opportunities      │    │stage_insights     │
+│
+                   │(Meeting-         │   │(MeetingUpsell- │       │(Transcript-       │
+│
+                   │ Sentiment)       │   │ Opportunity)      │    │ StageInsight)     │
+│
+                   └────────────────┘     └───────────────┘       └────────────────┘
+│
+
+│
+                   ┌──────────────────┐      ┌──────────────────┐
+│
+                   │meeting_attendance│      │meeting_recording_ │
+│
+                   │(MeetingAttendnce)│      │override                 │
+│
+                   └──────────────────┘      │(MeetingRecording- │
+│
+                                             │ Override)               │
+│
+                                             └──────────────────┘
+│
+
+┌──────────────┐       ┌──────────────┐    ┌──────────────┐ ┌──────────────┐
+│    users     │       │   calendars │     │ s3_storage    │ │   tokens     │
+│   (User)     │       │ (Calendar) │      │ (S3Storage)   │ │ (Token)      │
+│ ms_user_id, │        │ event_id,    │    │ bucket, key, │ │ access_token,│
+│ email,       │       │ subject,     │    │ share_url,    │ │ refresh_token│
+│ password_hash│       │ join_url,    │    │ reference_id │ │ ms_user_id    │
+└──────────────┘       │ organizer    │    └──────────────┘ └──────────────┘
+                       └──────────────┘
+
+┌──────────────┐       ┌──────────────┐    ┌──────────────┐        ┌──────────────┐
+│ ai_insights │        │ai_insight_   │    │ llm_runs     │        │ recall_ai_   │
+│(AiInsight)   │       │jobs          │    │ (LlmRun)     │        │ bots         │
+│ type, scope, │       │(AiInsight-   │    │ model, tokens│        │(RecallAiBot) │
+│ content      │       │ Job)         │    │ status       │        │ bot_id,      │
+└──────────────┘       └──────────────┘    └──────────────┘        │ meeting_id   │
+                                                          └──────────────┘
+
+┌──────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+│   alerts     │   │ app_config │     │ work_logs    │   │ms_subscript- │
+│ (Alert)      │   │ (AppConfig) │    │ (WorkLog)    │   │ions          │
+└──────────────┘   └──────────────┘   └──────────────┘   │(MsSubscript- │
+                                                          │ ion)          │
+                                                          └──────────────┘
+
+Additional models: AuditLog, BillingDuration, BillingMilestone,
+BillingTimeAndMaterial,
+License, Module, MsMeetingChatNotice, NeedsAttention,
+NeedsAttentionComment,
+Role, RoleAssignment, RolePermission, SalesDiscoveryQuestion,
+SensitiveField,
+UserConfig, UserHierarchy
+```
+
+### 7.4 Key Relationships (CONFIRMED from model FKs)
+
+| Parent | Child | FK Column | On Delete |
+|---|---|---|---|
+| projects | meetings | meetings.parent_id | SET NULL |
+| meetings | transcripts | transcripts.parent_id | CASCADE |
+| transcripts | meeting_insights | FK to transcript | CASCADE |
+| transcripts | meeting_action_items | FK to transcript | CASCADE |
+| transcripts | meeting_commitments | FK to transcript | CASCADE |
+| transcripts | meeting_sentiments | FK to transcript | CASCADE |
+| transcripts | meeting_upsell_opportunities | FK to transcript | CASCADE
+|
+| transcripts | meeting_attendance | FK to transcript | CASCADE |
+| transcripts | transcript_stage_insights | FK to transcript | CASCADE |
+| customers | jsm_tickets | jsm_tickets.customer_id | INFERRED |
+| jsm_tickets | jsm_ticket_comments | FK to ticket | INFERRED |
+| jsm_tickets | jsm_ticket_sentiments | FK to ticket | INFERRED |
+
+### 7.5 Alembic Migration Structure (CONFIRMED)
+
+- `alembic.ini` points to `migrations/` directory
+- `migrations/env.py` imports all models from `src/models/__init__.py`
+- Excludes Celery tables: `celery_taskmeta`, `celery_tasksetmeta`
+- ~70 migration files in `migrations/versions/`
+- Mix of schema changes and seed data migrations
+
+### 7.6 Data Flow: Transcript from API to Persistence
+
+```
+MS Graph webhook → transcript_id in payload
+  → Worker: GET /users/{uid}/onlineMeetings/{mid}/transcripts/{tid}
+(metadata)
+  → Worker: GET .../transcripts/{tid}/content?$format=text/vtt (VTT
+content)
+  → _prepare_transcript_row(): map to DB columns
+  → _store_transcript_in_db(): INSERT/UPSERT via repository
+  → transcripts table: id, parent_id, transcript_id, call_id, content,
+timestamps
+  → Post-processing: recording_url, attendance stored in related tables
+  → LLM insights: 7 child tables populated from LLM output
+```
+
+---
+
+## 8. Redis, Celery, and Background Processing
+
+### 8.1 Redis Configuration (CONFIRMED: `src/core/redis.py`)
+
+- Connection pool: max 50 connections, socket keepalive, health check
+interval
+- Singleton pool via `@lru_cache`
+- Uses ACL user "celery" (configured in `redis/entrypoint.sh`)
+- Redis 7.4 Docker image
+
+### 8.2 Redis Usage Patterns
+
+| Pattern | Location | Key Format | TTL |
+|---|---|---|---|
+| Celery broker | `src/worker/app.py` | Kombu queues | N/A |
+| MS transcript dedup | `src/handlers/ms/webhooks/meeting_transcripts.py`
+| `ms_webhook_transcript:{subId}:{resource}` | 300s |
+| User events dedup (L1) | `src/handlers/ms/webhooks/user_events.py` |
+`webhook:notification:{subId}:{resource}:{changeType}:{etag}` | 300s |
+| User events debounce (L2) | `src/handlers/ms/webhooks/user_events.py` |
+`processing_lock:{userId}:{eventId}` | 180s |
+| User events latest state | `src/handlers/ms/webhooks/user_events.py` |
+`latest_notification:{userId}:{eventId}` | 300s |
+| Recall webhook dedup | `src/handlers/recall_ai/webhooks/status.py` |
+`recall_webhook_processed:{webhookId}` | 900s |
+| Meet Now dedup | `src/handlers/ms/webhooks/meet_now.py` |
+`meet_now:notif:{transcriptId}` | 900s |
+| Jira webhook debounce |
+`src/handlers/jira/webhooks/jsm_ticket_events.py` |
+`jira:webhook:pending:{issueKey}` | 10s |
+| On-demand recording lock | `src/handlers/on_demand_recording.py` | Per
+join_url | 120s |
+| OAuth state | `src/handlers/ms/auth/oauth.py` | State param → redirect
+info | INFERRED |
+
+### 8.3 Celery Configuration (CONFIRMED: `src/worker/app.py`)
+
+```
+Broker:           Redis (db 0)
+Result Backend:   PostgreSQL (celery_taskmeta table)
+Serialization:    JSON only (task_serializer, result_serializer,
+accept_content)
+Ack:              Late (task_acks_late=True)
+Rejection:        On worker lost (task_reject_on_worker_lost=True)
+Prefetch:         1 (worker_prefetch_multiplier=1)
+Time Limits:      Soft 300s / Hard 360s (overridden per-task for S3
+uploads: 7200s)
+Timezone:         UTC
+```
+
+### 8.4 Task Inventory Summary
+
+~70+ tasks organized under `src/worker/tasks/`:
+**MS Graph tasks:**
+- `process_calendar_events_sync` — Daily calendar sync per user
+- `process_ms_meeting` — Register meeting from calendar event
+- `process_meeting_transcript_notification` — Core transcript processing
+- `process_transcript_post_processing` — Post-processing chord callback
+- `process_meeting_recording_url` — Fetch recording URL
+- `process_meeting_attendance_report` — Fetch attendance
+- `process_s3_recording_upload` — Upload recording to S3
+- `process_sharepoint_recording_copy` — Copy to SharePoint
+- `process_s3_recording_migration` — Migrate SharePoint → S3
+- `process_meeting_transcript_subscription_create` — Create webhook
+subscription
+- `process_user_events_subscription_create` — Create user events
+subscription
+- `process_subscription_delete` — Delete subscription
+- `process_subscription_renewal` — Renew expiring subscriptions
+- `process_user_events_notification` — Process calendar event change
+- `process_users_fetch_all` — Sync MS Graph users
+- `process_meet_now_subscribe` — Create tenant-wide transcript
+subscription
+- `process_meet_now_capture` — Process ad-hoc meeting transcript
+- `process_sync_missed_transcripts` — Backfill missed transcripts
+
+**LLM tasks:**
+- `process_meeting_summary` — Generate meeting summary
+- `process_meeting_minutes` — Generate meeting minutes
+- `process_meeting_key_notes` — Generate key notes
+- `process_meeting_action_items` — Generate action items
+- `process_meeting_commitments` — Generate commitments
+- `process_meeting_sentiment_analysis` — Generate sentiment analysis
+- `process_meeting_upsell_opportunities` — Generate upsell opportunities
+- `process_meeting_insights` — Orchestrator for all 7 insight types
+- `process_meeting_completed_notification` — Send email after insights
+complete
+- `process_transcript_stage_insight` — Sales stage detection per category
+- `process_jsm_ticket_sentiment_analysis` — Ticket sentiment via LLM
+- `process_ai_insights_scheduler` — Pick up dirty AI insight jobs
+- `process_ai_insight_customer_sentiment_trend` — Customer sentiment
+aggregate
+- `process_ai_insight_project_alerts` — Project alert aggregate
+- `process_purge_excluded_upsells` — Retroactive upsell cleanup
+- `process_purge_upsells_for_transcript` — Per-transcript upsell cleanup
+- `process_regenerate_untouched_upsells` — Backlog upsell regeneration
+
+**Jira tasks:**
+- `process_accounts_fetch_all` — Sync Jira accounts
+- `process_customers_fetch_all` — Sync Jira customers
+- `process_projects_fetch_all` — Sync Jira projects
+- `process_licenses_fetch_all` — Sync Jira licenses
+- `process_jsm_ticket_realtime_sync` — Real-time ticket sync
+- `process_jsm_ticket_soft_delete` — Soft-delete ticket
+- `process_jsm_tickets_by_assignee` — Tickets by assignee
+- `process_jsm_tickets_incremental_sync` — Incremental ticket sync
+- `process_jsm_tickets_soft_delete_reconcile` — Reconcile deletions
+
+**Recall AI tasks:**
+- `process_bot_create` — Create Recall AI bot
+- `process_recall_webhook` — Route Recall webhook events
+- `process_recall_transcript_post_processing` — Post-processing for
+Recall transcripts
+- `process_s3_recording_upload` (recall) — Upload Recall recording to S3
+
+**Tempo tasks:**
+- `process_worklogs_incremental_sync` — Incremental worklog sync
+- `process_worklogs_deletion_sync` — Reconcile deleted worklogs
+
+**Recording Control tasks:**
+- `process_recording_reconcile_sweep` — Apply MS recording overrides
+- `process_recording_bot_cancel` — Cancel Recall AI bot
+- `process_recording_policy_sweep` — Apply Do Not Record policies
+- `process_recording_override_cleanup` — Purge expired overrides
+
+**Chat Notice tasks:**
+- `process_chat_notice_scheduler` — Schedule pre-meeting chat notices
+- `process_chat_notice_send` — Send individual chat notice
+
+### 8.5 Queue Architecture (CONFIRMED: `src/worker/routing.py`)
+
+Every task has its own dedicated Kombu queue (one-to-one mapping). ~80
+queues defined. This provides complete isolation between task types — one
+slow or failing task type cannot block others.
+
+### 8.6 Beat Schedule (CONFIRMED: `src/worker/app.py`)
+
+| Job | Schedule | Task |
+|---|---|---|
+| Users fetch | Daily 00:00 UTC | `process_users_fetch_all` |
+| Accounts fetch | Daily 00:15 UTC | `process_accounts_fetch_all` |
+| Customers fetch | Daily 00:30 UTC | `process_customers_fetch_all` |
+| Calendar events sync | Daily 00:45 UTC | `process_calendar_events_sync`
+|
+| Subscription renewal | Every 6 hours | `process_subscription_renewal` |
+| Worklog incremental sync | Every 15 min |
+`process_worklogs_incremental_sync` |
+| Worklog deletion sync | Every 20 min | `process_worklogs_deletion_sync`
+|
+| Chat notice scheduler | Every 5 min | `process_chat_notice_scheduler` |
+| AI insights scheduler | Every 2 min | `process_ai_insights_scheduler` |
+| AI insight jobs reaper | Every 5 min | AI insight job cleanup |
+| AI insights coverage | Daily 02:00 UTC | Coverage sweep for missed
+insights |
+| Recording reconcile sweep | Every 5 min |
+`process_recording_reconcile_sweep` |
+| Override cleanup | Daily 01:15 UTC |
+`process_recording_override_cleanup` |
+| Policy sweep | Every 5 min | `process_recording_policy_sweep` |
+
+### 8.7 Task Execution Trace: Full Cycle
+
+```
+Celery Beat fires schedule
+  → Enqueues task message to Redis (specific queue via routing)
+  → Celery worker polls queue
+  → task_prerun signal: inject trace_id into context vars
+  → Task function (src/worker/tasks/X.py):
+      Calls worker/utils/X.py (actual logic)
+        → Opens db_session() context manager
+        → Reads from repositories
+        → Calls services (MS Graph, LLM, etc.)
+        → Writes results via repositories
+        → May chain/chord additional tasks
+  → task_postrun signal: log completion
+  → On failure: task_failure signal logs exception
+  → Result stored in PostgreSQL celery_taskmeta
+```
+
+---
+
+## 9. AI and LLM Execution Lifecycle
+
+### 9.1 LLM Provider Configuration (CONFIRMED:
+`src/services/llm/litellm.py`)
+
+- **Library:** LiteLLM — a universal LLM proxy that routes to any
+provider
+- **Model:** Configured via `LLM_MODEL` env var (default: UNKNOWN)
+- **Upsell model:** Separate `UPSELL_LLM_MODEL` env var
+- **Temperature:** `LLM_TEMPERATURE` env var; disabled for GPT-5/o1/o3/o4
+families
+- **Actual provider:** UNKNOWN — determined at runtime by the model
+string
+
+### 9.2 LLM Call Flow (CONFIRMED)
+
+```python
+# src/services/llm/litellm.py::run()
+async def run(messages, insight_type, reference_id, ...):
+    1. Create LlmRun record in DB (status="pending")
+    2. Call litellm.acompletion(model=config.llm_model,
+messages=messages, ...)
+       - temperature omitted for gpt-5, o1, o3, o4 families
+    3. Parse response.choices[0].message.content
+    4. Update LlmRun: status="completed", tokens_used, model
+    5. Return parsed content
+    On failure:
+    6. Update LlmRun: status="failed", error message
+    7. Raise exception
+```
+
+### 9.3 Prompt Template System (CONFIRMED: `src/utils/prompts.py`)
+
+**Template location:** `src/templates/llm/`
+
+Each insight type has a subdirectory with:
+- `system.md.jinja` — System role prompt (defines the AI's persona)
+- `user.md.jinja` — User role prompt (provides context + transcript)
+
+**render_messages()** produces:
+```python
+[
+    {"role": "system", "content": "<rendered system prompt>"},
+    {"role": "user",   "content": "<rendered user prompt with
+transcript>"}
+]
+```
+
+### 9.4 Template Inventory (CONFIRMED)
+
+| Template Directory | Insight Type | Output |
+|---|---|---|
+| `meeting_summary/` | Meeting Summary | Paragraph narrative (80-120
+words) |
+| `meeting_minutes/` | Meeting Minutes | Structured minutes document |
+| `meeting_key_notes/` | Key Notes | Bullet-point key takeaways |
+| `meeting_action_items/` | Action Items | Structured action items with
+owners |
+| `meeting_commitments/` | Commitments | Promises made with deadlines |
+| `meeting_sentiment/` | Sentiment Analysis | Sentiment scores and
+analysis (v2) |
+| `meeting_upsell_opportunities/` | Upsell Opportunities | Business
+opportunities (v2) |
+| `transcript_stage_insights/` | Sales Stage Detection | Sales funnel
+stage per category |
+| `jsm_ticket_sentiment/` | JSM Ticket Sentiment | Ticket sentiment
+(v2/v3/v4) |
+| `ai_insight_customer_sentiment_trend/` | Customer Sentiment Trend |
+Aggregated customer sentiment |
+| `ai_insight_project_alerts/` | Project Alerts | Aggregated project risk
+alerts |
+
+### 9.5 Per-Meeting Insight Pipeline (CONFIRMED)
+
+```
+process_meeting_insights (orchestrator:
+src/handlers/llm/meeting_insights.py)
+  │
+  ├── Maps insight_type string → Celery task function
+  │   - "summary"            → process_meeting_summary
+  │   - "minutes"            → process_meeting_minutes
+  │   - "key_notes"          → process_meeting_key_notes
+  │   - "action_items"       → process_meeting_action_items
+  │   - "commitments"        → process_meeting_commitments
+  │   - "sentiment_analysis" → process_meeting_sentiment_analysis
+  │   - "upsell_opportunities" → process_meeting_upsell_opportunities
+  │
+  └── Dispatches all 7 tasks (or individual) via send_task_with_trace()
+
+Each task:
+  1. Load transcript content from DB
+  2. Render Jinja2 templates: system.md.jinja + user.md.jinja
+     Context: meeting subject, date, organizer, attendees, full
+transcript text
+  3. Call litellm.run(messages=rendered_messages, ...)
+  4. Parse structured LLM response (JSON or markdown depending on type)
+  5. Store parsed result in dedicated table:
+     - meeting_insights (summary, minutes, key_notes)
+     - meeting_action_items
+     - meeting_commitments
+     - meeting_sentiments
+     - meeting_upsell_opportunities
+  6. Create LlmRun tracking record
+Post-insight tasks (CONFIRMED):
+  - process_meeting_completed_notification → email via MS Graph send_mail
+  - process_transcript_stage_insight → sales funnel stage analysis
+  - mark_dirty() → flags project/customer for AI insight regeneration
+```
+
+### 9.6 Cross-Entity AI Insights (CONFIRMED)
+
+**Customer Sentiment Trend:**
+- Aggregates meeting sentiments across all meetings for a customer
+- LLM generates a narrative about the customer's sentiment trajectory
+- Triggered by dirty flag when underlying meeting sentiments change
+
+**Project Alerts:**
+- Aggregates meeting data and ticket data for a project
+- LLM generates risk alerts
+- Triggered by dirty flag
+
+**Scheduler:** `process_ai_insights_scheduler` runs every 2 minutes,
+picks up dirty jobs, dispatches generation tasks. A reaper runs every 5
+minutes to clean stuck jobs. A daily coverage sweep catches gaps.
+
+### 9.7 LLM Output Handling
+
+- **Structured output:** LLM responses are parsed into structured objects
+(INFERRED from repository store operations)
+- **Token tracking:** Every call records model, token count, and status
+in `llm_runs` table (CONFIRMED)
+- **Error handling:** Failed LLM calls are logged with the error, LlmRun
+status set to "failed" (CONFIRMED)
+- **Retry mechanism:** NOT FOUND at the LLM call level. Celery's own
+retry mechanism may apply.
+- **RAG / Tool calling / Agent orchestration:** NOT FOUND. Direct LLM
+completion calls only.
+
+---
+
+## 10. Microsoft Graph, Teams, and External Integrations
+
+### 10.1 Microsoft Graph Integration (CONFIRMED)
+
+**Client code:** `src/services/ms/graph/` — 35+ files, each wrapping
+specific MS Graph API calls.
+
+**Authentication:**
+1. **Application (client credentials):** `src/services/ms/graph/token.py`
+— acquires app-only token for tenant-wide operations
+2. **Delegated (user-consented):** `src/handlers/ms/auth/oauth.py` — full
+OAuth2 authorization code flow
+3. **Token refresh:** `src/services/ms/graph/delegated_token_refresh.py`
+— auto-refreshes expired delegated tokens
+
+**API Calls Made (CONFIRMED from service files):**
+
+| Category | API Endpoint Pattern | Purpose |
+|---|---|---|
+| Users | `GET /users` | Sync all users |
+| Calendar | `GET /users/{id}/calendarView` | Fetch calendar events |
+| Meetings | `GET /users/{id}/onlineMeetings/{id}` | Get meeting details
+|
+| Transcripts | `GET /users/{id}/onlineMeetings/{id}/transcripts/{id}` |
+Get transcript metadata |
+| Transcript content | `GET
+.../transcripts/{id}/content?$format=text/vtt` | Download VTT text |
+| Attendance | `GET .../onlineMeetings/{id}/attendanceReports` | Fetch
+attendance |
+| Recording URL | Various | Fetch recording download URL |
+| Subscriptions | `POST /subscriptions` | Create webhook subscriptions |
+| Subscriptions | `PATCH /subscriptions/{id}` | Renew subscriptions |
+| Subscriptions | `DELETE /subscriptions/{id}` | Delete subscriptions |
+| Send Mail | `POST /users/{id}/sendMail` | Send notification emails |
+| Chat | `POST /chats/{id}/messages` | Send pre-meeting chat notices |
+| SharePoint / OneDrive | Various | Recording copy operations |
+| Transcription policy | `PATCH /users/{id}/onlineMeetings/{id}` | Toggle
+transcription switch |
+
+**Webhook subscriptions:**
+- Per-user transcript subscription:
+`users('{id}')/onlineMeetings/getAllTranscripts`
+- Per-user calendar event subscription: `users('{id}')/events`
+- Tenant-wide Meet Now: `communications/onlineMeetings/getAllTranscripts`
+
+### 10.2 Recall AI Integration (CONFIRMED)
+
+**Client code:** `src/services/recall_ai/`
+
+| Operation | Method | Purpose |
+|---|---|---|
+| Create bot | POST | Send recording bot to join a meeting |
+| Delete bot | DELETE | Remove/cancel a recording bot |
+| Get bot | GET | Fetch bot status and metadata |
+| Get transcript | GET | Download transcript from completed recording |
+| Get recording | GET | Download recording media |
+| Get participants | GET | Fetch participant/attendance data |
+
+**Auth:** API key in `Authorization` header (CONFIRMED from config).
+
+**Webhook:** Recall sends status updates via Svix-powered webhooks to
+`POST /api/v1/recall-ai/webhooks/status`. Events include
+`recording.done`, bot status changes. Deduplication via `webhook-id`
+header.
+
+**NOTE:** Webhook signature verification is coded as a TODO comment (line
+~149-160 of `src/handlers/recall_ai/webhooks/status.py`). NOT VERIFIED in
+production.
+
+### 10.3 Jira / JSM Integration (CONFIRMED)
+
+**Client code:** `src/services/jira/`
+**Auth:** Basic auth (username + password from config)
+
+**Sync operations:**
+- Accounts, customers, projects, licenses — daily Beat sync
+- JSM tickets — incremental sync + real-time webhook
+
+**Real-time webhook flow:**
+```
+Jira sends POST /api/v1/jira/webhooks/jsm-ticket-events
+  →
+src/handlers/jira/webhooks/jsm_ticket_events.py::handle_jira_webhook_even
+t()
+  → Dispatches based on event type:
+    - "jira:issue_deleted" → process_jsm_ticket_soft_delete
+    - "jira:issue_created/updated", "comment_*" → debounced sync (10s
+Redis coalesce)
+  → Real-time sync: fetch ticket from Jira API → upsert in DB
+  → After sync: process_jsm_ticket_sentiment_analysis (LLM sentiment on
+comments)
+```
+
+### 10.4 Tempo Integration (CONFIRMED)
+
+**Client code:** `src/services/tempo/`
+**Auth:** API token
+
+**Operations:**
+- Incremental worklog sync (every 15 min)
+- Deletion reconciliation (every 20 min)
+- Backfill for initial data load
+
+### 10.5 AWS S3 Integration (CONFIRMED)
+
+**Client code:** `src/services/aws/`
+
+**Operations:**
+- Multipart upload of meeting recordings
+- Presigned URL generation for playback access (with caching in
+`s3_storage.share_url`)
+- Object deletion (on transcript purge)
+- SharePoint-to-S3 migration
+
+### 10.6 OpenTelemetry / SigNoz (CONFIRMED)
+
+**Config:** `otel-agent/config.yaml`
+- Receives OTLP gRPC traces, metrics, and logs from app/worker/beat
+- Scrapes Redis server metrics
+- Exports to SigNoz via OTLP gRPC
+
+---
+
+## 11. End-to-End Business Workflows
+
+### 11.1 Workflow: Scheduled Meeting → Insights
+
+```
+Trigger: Celery Beat daily 00:45 UTC
+  ↓
+1. process_calendar_events_sync
+   → For each user: GET calendar events from MS Graph
+   → Store/update in calendars table
+   → For each external meeting: queue process_ms_meeting
+  ↓
+2. process_ms_meeting
+   → GET online meeting details from MS Graph
+   → Create/update meetings row
+   → Queue process_meeting_transcript_subscription_create
+  ↓
+3. process_meeting_transcript_subscription_create
+   → POST subscription to MS Graph for transcript events
+   → Store subscription in ms_subscriptions table
+  ↓
+4. [Meeting occurs, transcript is generated by Teams]
+   → MS Graph sends webhook to /api/v1/ms/webhooks/meeting-transcripts
+  ↓
+5. Webhook handler deduplicates, queues
+process_meeting_transcript_notification
+  ↓
+6. process_meeting_transcript_notification
+   → Fetch transcript metadata + VTT content from MS Graph
+   → Check recording control overrides
+   → Check Do Not Record domains
+   → Store transcript row
+   → Build Celery chord: [recording_url, attendance] → post_processing
+  ↓
+7. process_transcript_post_processing
+   → Backfill Meet Now actuals
+   → Queue S3 recording upload (30s delay)
+   → Queue process_meeting_insights (60s delay)
+  ↓
+8. process_meeting_insights → dispatches 7 tasks:
+   → process_meeting_summary
+   → process_meeting_minutes
+   → process_meeting_key_notes
+   → process_meeting_action_items
+   → process_meeting_commitments
+   → process_meeting_sentiment_analysis
+   → process_meeting_upsell_opportunities
+   Each: load transcript → render prompt → LLM call → parse → store
+  ↓
+9. Post-insight:
+   → process_meeting_completed_notification (email)
+   → process_transcript_stage_insight (sales stage)
+   → mark_dirty → triggers AI insight regeneration
+  ↓
+10. AI insights scheduler picks up dirty jobs
+    → process_ai_insight_customer_sentiment_trend
+    → process_ai_insight_project_alerts
+```
+
+### 11.2 Workflow: External Meeting → Recall AI Capture
+
+```
+Trigger: Calendar sync detects external meeting (organizer outside
+tenant)
+  ↓
+1. process_bot_create
+   → POST to Recall AI API: create bot with join URL
+   → Store bot row in recall_ai_bots table
+  ↓
+2. [Bot joins meeting, records it]
+   → Recall sends webhook (recording.done) to /api/v1/recall-
+ai/webhooks/status
+  ↓
+3. process_recall_webhook
+   → Routes based on event type
+   → For recording.done: fetch transcript + participants from Recall API
+   → Store transcript (with transcript_raw_json for Recall format)
+   → Queue process_recall_transcript_post_processing
+  ↓
+4. Same LLM insight pipeline as MS meetings (step 8+ above)
+```
+
+### 11.3 Workflow: On-Demand Recording
+
+```
+Trigger: User clicks "Record" in Elevate UI for a meeting in progress
+  ↓
+1. POST /api/v1/on-demand-recording {email, join_url}
+  ↓
+2. Handler:
+   → Acquire Redis lock (per join_url)
+   → Validate requester (user exists, active)
+   → Classify join URL (Teams, Zoom, etc.)
+   → Check: internal organizer? → reject (auto-captured)
+   → Check: existing active bot? → reject
+   → Check: recording stopped? → reject
+   → Check: Do Not Record domain? → reject
+   → Synchronously create Recall AI bot
+   → Store bot + meeting rows
+   → Release lock
+   → Return 201
+  ↓
+3. Bot joins → same Recall webhook flow → insights
+```
+
+### 11.4 Workflow: Recording Control (Stop/Start)
+
+```
+Trigger: User clicks "Stop Recording" in Elevate UI
+  ↓
+1. POST /api/v1/recording-control {action: "stop", scope: "occurrence",
+event_id}
+  ↓
+2. Handler:
+   → Feature flag check
+   → Load calendar event
+   → Resolve scope (single/occurrence/series)
+   → Enforce cutoff threshold
+   → Detect platform (MS vs Recall)
+  ↓
+3a. MS Platform:
+    → Write STATE_DISABLED override
+    → Mark override target as "due"
+    → Queue reconcile sweep
+    → Sweep: PATCH meeting to disable transcription
+  ↓
+3b. Recall Platform:
+    → Write override
+    → Queue bot cancel task → DELETE bot at Recall API
+    → For series: fan out cancel across all occurrences
+  ↓
+4. Start is the reverse:
+   MS: Write STATE_ENABLED → sweep re-enables transcription
+   Recall: Delete override → re-create bot
+```
+
+### 11.5 Workflow: Jira Ticket Sentiment Analysis
+
+```
+Trigger: Jira sends webhook for ticket create/update/comment
+  ↓
+1. POST /api/v1/jira/webhooks/jsm-ticket-events {webhookEvent, issue:
+{key}}
+  ↓
+2. Handler debounces (10s Redis coalesce per issue_key)
+  ↓
+3. process_jsm_ticket_realtime_sync
+   → Fetch ticket + comments from Jira API
+   → Upsert ticket in jsm_tickets table
+   → Upsert comments in jsm_ticket_comments table
+   → Queue process_jsm_ticket_sentiment_analysis
+  ↓
+4. process_jsm_ticket_sentiment_analysis
+   → Load ticket + comments
+   → Render jsm_ticket_sentiment prompt template
+   → LLM call → parse sentiment scores
+   → Store in jsm_ticket_sentiments table
+```
+
+### 11.6 Workflow: Transcript Purge
+
+```
+Trigger: DELETE /api/v1/transcripts/{id}
+  ↓
+1. Resolve project_id and customer_id (before deletion)
+2. Delete S3 object (if completed s3_storage row exists)
+3. Delete alerts for this transcript
+4. Delete s3_storage row
+5. Delete transcript row (CASCADE deletes 7 child tables:
+   insights, action_items, commitments, sentiments,
+   upsell_opportunities, attendance, stage_insights)
+6. mark_dirty() → triggers AI insight refresh for project/customer
+```
+
+---
+
+## 12. Application and Runtime Lifecycle
+
+### 12.1 Application Startup Sequence
+
+```
+1. Docker entrypoint: docker/entrypoint.sh
+   → Run: alembic upgrade head (apply all pending migrations)
+   → If OTEL configured: wrap with opentelemetry-instrument
+   → Start: uvicorn src.main:app --host 0.0.0.0 --port 8000
+     (--reload in dev mode)
+
+2. Uvicorn loads src/main.py:
+   → FastAPI() created
+   → CORS middleware added
+   → Logging middleware added
+   → 26 routers registered under /api/v1
+   → Health check endpoints registered
+   → src/core/config.py: Config loaded from env on first access
+(lru_cache)
+   → src/db_engine/db.py: SQLAlchemy engine created on first import
+   → src/core/redis.py: Redis pool created on first access (lru_cache)
+   → App is ready to serve HTTP requests
+
+3. Celery Worker (separate container, same image):
+   → celery -A src.worker.app:celery_app worker ...
+   → src/worker/app.py: celery_app configured
+   → Task modules loaded from include list
+   → Queues registered from routing.py
+   → Signals connected (task_prerun, task_postrun, task_failure)
+   → Worker ready to consume tasks from Redis
+
+4. Celery Beat (separate container, same image):
+   → celery -A src.worker.app:celery_app beat ...
+   → Beat schedule loaded from app config
+   → Starts firing periodic tasks
+```
+
+### 12.2 Request Processing Lifecycle
+
+```
+1. HTTP request arrives at Uvicorn
+2. ASGI → FastAPI
+3. LoggingMiddleware.dispatch():
+   - Extract/generate trace_id, request_id
+   - Set context vars
+   - Log "Request started"
+4. CORSMiddleware: validate origin
+5. FastAPI routing: match path → router → handler function
+6. Pydantic validation: parse request body/params against schema
+7. Handler executes:
+   - Load data via repositories (db_session)
+   - Apply business rules
+   - Enqueue Celery tasks (send_task_with_trace)
+8. Response serialized via Pydantic schema
+9. LoggingMiddleware: log "Request completed", add trace headers
+10. HTTP response returned
+```
+
+### 12.3 Shutdown
+
+**NOT FOUND:** No explicit shutdown/cleanup hooks. Uvicorn handles
+graceful shutdown. Celery workers use `task_acks_late=True` to requeue
+in-progress tasks on crash.
+
+---
+
+## 13. Docker, Configuration, and Deployment
+
+### 13.1 Docker Compose Services (CONFIRMED: `docker-compose.yml`)
+| Service | Image | Command | Port | Role |
+|---|---|---|---|---|
+| `app` | `elevate-ai-app` (custom) | Entrypoint runs uvicorn | 8000 |
+FastAPI web server |
+| `celery-worker` | Same image | `celery -A src.worker.app:celery_app
+worker` | — | Task consumer |
+| `celery-beat` | Same image | `celery -A src.worker.app:celery_app beat`
+| — | Task scheduler |
+| `redis` | `redis:7.4` | Custom entrypoint (ACL setup) | 6379 | Broker +
+dedup |
+| `otel-agent` | `otel/opentelemetry-collector-contrib` | Config from
+`otel-agent/config.yaml` | 4317, 13133 | Telemetry sidecar |
+
+**PostgreSQL is NOT in docker-compose** — it is expected to be an
+external managed database (CONFIRMED: depends_on lines are commented
+out).
+
+### 13.2 Dockerfile (CONFIRMED)
+
+Multi-stage build:
+
+```
+Stage: builder
+  - Python 3.13-slim base
+  - Install Poetry
+  - Copy pyproject.toml + poetry.lock
+  - poetry install --no-root (install deps)
+  - opentelemetry-bootstrap -a install (auto-instrument)
+  - Copy source code
+
+Stage: dev (FROM builder)
+  - Create non-root user 'kensium'
+  - Mount source as volume (live reload)
+  - CMD: entrypoint.sh → uvicorn --reload
+
+Stage: prod (FROM builder)
+  - Create non-root user 'kensium'
+  - Copy source only (no dev tools)
+  - CMD: entrypoint.sh → uvicorn (no reload)
+```
+
+### 13.3 Service Dependency Diagram
+
+```
+┌──────────────┐
+│ PostgreSQL │ (external, managed)
+│ (not in      │
+│ compose)     │
+└──────┬───────┘
+       │
+       │ DB connections
+       │
+┌──────┼──────────────────────────────────────────┐
+│      │                                          │
+│ ┌───▼────┐     ┌──────────────┐  ┌──────────┐ │
+│ │ app     │    │celery-worker │  │celery-   │ │
+│ │ :8000 ├──►│                 │  │beat      │ │
+│ │         │    │              │  │          │ │
+│ └───┬────┘    └──────┬───────┘   └────┬─────┘ │
+│      │               │                │         │
+│      │    ┌──────────▼────────────────▼──┐      │
+│      │    │         redis :6379          │      │
+│      │    │    (broker + dedup/locks)    │      │
+│      │    └──────────────────────────────┘      │
+│      │                                          │
+│      │    ┌──────────────────────────────┐      │
+│      └───►│      otel-agent :4317        │      │
+│      │    │    (OTLP traces/metrics)     │      │
+│      │    └──────────┬───────────────────┘      │
+│      │               │                          │
+└──────┼───────────────┼──────────────────────────┘
+       │               │
+       ▼               ▼
+  Elevate UI       SigNoz
+  (external)       (external)
+```
+
+### 13.4 Environment Variables (structure only, no secret values)
+
+Key categories:
+- `APP_ENV` — dev/staging/prod
+- `DATABASE_*` — PostgreSQL connection
+- `REDIS_*` — Redis connection + ACL credentials
+- `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET` — Microsoft Graph
+- `JIRA_*` — Jira API credentials
+- `TEMPO_*` — Tempo API token
+- `LLM_MODEL`, `LLM_TEMPERATURE`, `UPSELL_LLM_MODEL` — LLM config
+- `RECALL_*` — Recall AI API key
+- `AWS_*` — S3 credentials and bucket
+- `OTEL_*` — OpenTelemetry exporter endpoint
+- Feature flags: `RECORDING_CONTROL_ENABLED`,
+`RECORDING_SETTINGS_ENABLED`, `MS_TENANT_ROUTING_ENABLED`,
+`MS_TENANT_TRANSCRIPTS_ENABLED`, `MEETING_NOTIFICATION_ENABLED`
+
+---
+
+## 14. Testing, Quality, and Failure Analysis
+
+### 14.1 Test Organization (CONFIRMED)
+
+**180 test files** organized by feature domain:
+
+| Test Directory | File Count | Coverage Area |
+|---|---|---|
+| `tests/ai_insights/` | 6 | AI insight generation, mark_dirty, sentiment
+|
+| `tests/alerts/` | 1 | Alert repository |
+| `tests/calendar/` | 10 | Calendar sync, dedup, filters, routing,
+storage |
+| `tests/chat_notice/` | 5 | Pre-meeting chat notices |
+| `tests/core/` | 1 | Config loading |
+| `tests/handlers/jira/` | 1 | JSM ticket webhook handler |
+| `tests/jira/` | 5 | Jira services, ticket repo, comments |
+| `tests/meet_now/` | 9 | Meet Now capture, backfill, webhook |
+| `tests/meeting_notification/` | 8 | Email notifications |
+| `tests/meetings/` | 7 | Meeting processing, matching, storage |
+| `tests/on_demand/` | 7 | On-demand recording handler, bot create |
+| `tests/recall/` | 9 | Recall AI bot, transcript fetch, webhooks |
+| `tests/recording_control/` | 17 | Stop/start, sweep, policy,
+concurrency |
+| `tests/recording_settings/` | 14 | Recording settings, domain matching
+|
+| `tests/routes/jira/` | 2 | Jira route tests |
+| `tests/services/` | 1 | LiteLLM temperature handling |
+| `tests/subscriptions/` | 10 | MS Graph subscription lifecycle |
+| `tests/transcripts/` | 9 | Transcript notification, upload, storage |
+| `tests/upsells/` | 16 | Upsell lifecycle, parsing, quality, purge |
+| `tests/worker/` | 5 | Worker wiring, JSM sync tasks |
+
+### 14.2 Test Strategy (CONFIRMED from sample tests)
+
+- **Framework:** pytest
+- **Mocking:** `unittest.mock` (Mock, AsyncMock, patch)
+- **No conftest.py files** — inline setup per test
+- **No database fixtures** — all DB calls mocked
+- **Pattern:** Unit tests with extensive patching of external
+dependencies
+- **Naming convention:** Test IDs like `TRN-NOTIF-02`, `TRN-NOTIF-05`
+(traceable to requirements)
+- **Helper files:** `_upsell_fakes.py`, `_ai_insights_fakes.py`,
+`_recording_settings_defaults.py`
+
+### 14.3 Test Coverage Gaps (INFERRED)
+
+Areas with **well-covered** tests:
+- Recording control (17 files — most extensively tested feature)
+- Upsells (16 files)
+- Recording settings (14 files)
+- Calendar sync (10 files)
+- Subscriptions (10 files)
+
+Areas with **potential gaps:**
+- AWS S3 operations (upload, migration, presigned URLs) — NOT FOUND in
+test listing
+- LLM prompt rendering and output parsing — only 1 test file for
+temperature
+- OAuth token flow — NOT FOUND
+- End-to-end integration tests — NOT FOUND (all tests appear to be unit
+tests with mocks)
+- Error recovery paths in worker tasks — INFERRED from limited coverage
+
+### 14.4 Reliability Risks (INFERRED)
+
+1. **No integration tests with real database** — all DB calls mocked, so
+migration/schema mismatches would not be caught
+2. **No end-to-end tests** — webhook → task → LLM → storage path untested
+as a chain
+3. **LLM output parsing** — if the LLM returns unexpected format, parsing
+may fail silently (INFERRED)
+4. **Task chords** — if a header task in a chord fails, the callback may
+not fire (Celery behavior)
+5. **Redis connection loss** — dedup handlers fail open, which is safe
+but could cause duplicate processing
+---
+
+## 15. Security and Reliability Review
+
+### 15.1 Authentication and Authorization
+
+**FINDING: No API authentication middleware identified** [Confidence:
+HIGH]
+
+- No auth middleware registered in `src/main.py`
+- No JWT validation, API key checking, or session validation in route
+definitions
+- No `Depends()` for auth in any reviewed route
+- `users` table has `password_hash` column; `roles`, `role_permissions`,
+`role_assignments` tables exist
+- **INFERRED:** Auth may be handled by a reverse proxy or API gateway
+upstream. Verify with Mahesh.
+
+### 15.2 Webhook Security
+
+**MS Graph webhooks:** Validated via `validationToken` handshake
+(CONFIRMED). No payload signature verification identified beyond
+deduplication.
+
+**Recall AI webhooks:** Signature verification is **coded as a TODO
+comment** (`src/handlers/recall_ai/webhooks/status.py:149-160`).
+Currently NOT verified. Any HTTP POST to the endpoint would be processed.
+
+**Jira webhooks:** No signature verification identified (NOT FOUND).
+Payload is processed based on event type and issue key.
+
+### 15.3 Secret Handling
+
+- All secrets loaded from environment variables via Pydantic BaseSettings
+(CONFIRMED)
+- `.env.example` exists but actual `.env` is gitignored (CONFIRMED)
+- No secrets hardcoded in source code (CONFIRMED from review)
+- CORS origins are hardcoded in `src/main.py` (includes internal IP
+address)
+
+### 15.4 Input Validation
+
+- Request bodies validated via Pydantic schemas (CONFIRMED)
+- UUID validation in handlers (`UUID(str)` with try/except)
+- No SQL injection risk — all queries via SQLModel/SQLAlchemy ORM
+(CONFIRMED)
+- SQL in seed files uses `_sql_escape()` for string escaping (CONFIRMED)
+
+### 15.5 Sensitive Logging
+
+- On-demand recording handler strips query string from join URLs before
+logging (CONFIRMED: `join_url.split("?", 1)[0]`)
+- Meet Now handler truncates IDs in logs (CONFIRMED: `transcript_id[:50]
++ "..."`)
+- **INFERRED:** Full transcript content may be logged at DEBUG level in
+some code paths. Verify `LOG_LEVEL` in production.
+
+### 15.6 Data Retention
+- Transcript purge deletes S3 objects, alerts, s3_storage rows, and
+cascades to 7 child tables (CONFIRMED)
+- Recording override cleanup runs daily (CONFIRMED)
+- `SensitiveField` model exists but population/consumption path is
+UNKNOWN
+
+### 15.7 Summary of Findings
+
+| Finding | Severity | Confidence | Status |
+|---|---|---|---|
+| No API auth middleware in codebase | HIGH | HIGH | Verify upstream
+proxy |
+| Recall webhook signature not verified | MEDIUM | CONFIRMED | TODO in
+code |
+| Jira webhook no signature verification | MEDIUM | NOT FOUND | May be
+handled externally |
+| CORS allows internal IP | LOW | CONFIRMED | Development artifact |
+| Hardcoded CORS origins | LOW | CONFIRMED | Should use env var |
+
+---
+
+## 16. Reference Materials
+
+### 16.1 Important Functions and Classes
+
+| Function/Class | File | Line | Purpose |
+|---|---|---|---|
+| `app` | `src/main.py` | 45 | FastAPI application instance |
+| `Config` | `src/core/config.py` | varies | Pydantic BaseSettings with
+all env vars |
+| `get_config()` | `src/core/config.py` | varies | Singleton config
+accessor |
+| `get_session()` | `src/db_engine/db.py` | varies | FastAPI DB session
+dependency |
+| `db_session()` | `src/db_engine/db.py` | varies | Celery DB session
+context manager |
+| `get_redis_client()` | `src/core/redis.py` | varies | Singleton Redis
+client |
+| `celery_app` | `src/worker/app.py` | varies | Celery application
+instance |
+| `send_task_with_trace()` | `src/worker/utils/task_utils.py` | 12 |
+Trace-injecting task dispatch |
+| `run()` (litellm) | `src/services/llm/litellm.py` | varies | LLM
+completion with tracking |
+| `render_messages()` | `src/utils/prompts.py` | 42 | Jinja2 prompt
+rendering |
+| `render_email()` | `src/utils/emails.py` | 43 | HTML email rendering |
+| `handle_recording_action()` | `src/handlers/recording_control.py` | 527
+| Recording stop/start orchestrator |
+| `handle_on_demand_recording()` | `src/handlers/on_demand_recording.py`
+| varies | On-demand bot creation |
+| `process()` (transcript) |
+`src/worker/utils/ms/process_meeting_transcript_notification.py` | varies
+| Core transcript processing |
+| `process_callback()` |
+`src/worker/utils/ms/process_transcript_post_processing.py` | 22 | Post-
+processing orchestrator |
+| `queue_meeting_insights_generation()` |
+`src/handlers/llm/meeting_insights.py` | varies | 7-insight dispatch |
+| `process_user_events_notifications()` |
+`src/handlers/ms/webhooks/user_events.py` | 319 | 2-level dedup webhook
+handler |
+| `process_meet_now_notifications()` |
+`src/handlers/ms/webhooks/meet_now.py` | 158 | Tenant-wide transcript
+handler |
+| `handle_jira_webhook_event()` |
+`src/handlers/jira/webhooks/jsm_ticket_events.py` | 76 | Jira webhook
+dispatcher |
+| `LoggingMiddleware` | `src/middleware/logging.py` | 15 | Request
+logging + trace injection |
+| `ContextInjectingFilter` | `src/logger/config.py` | 13 | Log filter
+adding trace/request IDs |
+
+### 16.2 "Where to Look" Index
+
+| Question | Start Here |
+|---|---|
+| How does the app start? | `docker/entrypoint.sh` → `src/main.py` |
+| What routes exist? | `src/main.py` (26 router imports) |
+| How is config loaded? | `src/core/config.py` |
+| How do DB sessions work? | `src/db_engine/db.py` |
+| How are Celery tasks dispatched? | `src/worker/utils/task_utils.py` |
+| What's the Beat schedule? | `src/worker/app.py` (beat_schedule dict) |
+| How does transcript capture work? |
+`src/worker/utils/ms/process_meeting_transcript_notification.py` |
+| How do LLM calls work? | `src/services/llm/litellm.py` |
+| What prompts are used? | `src/templates/llm/` (11 subdirectories) |
+| How does recording control work? | `src/handlers/recording_control.py`
+|
+| How does on-demand recording work? |
+`src/handlers/on_demand_recording.py` |
+| How are webhooks processed? | `src/handlers/ms/webhooks/`,
+`src/handlers/recall_ai/webhooks/`, `src/handlers/jira/webhooks/` |
+| How is Redis used? | `src/core/redis.py` + dedup in webhook handlers |
+| What models exist? | `src/models/__init__.py` (imports all 38+) |
+| How do migrations work? | `migrations/env.py` + `migrations/versions/`
+|
+| How is logging structured? | `src/logger/config.py` +
+`src/middleware/logging.py` |
+| How is Docker configured? | `Dockerfile` + `docker-compose.yml` |
+| Where are tests? | `tests/` (180 files by feature domain) |
+
+---
+
+## 17. Glossary
+
+| Term | Definition |
+|---|---|
+| **Elevate AI** | Kensium's meeting intelligence platform — this service
+is its backend |
+| **MS Graph** | Microsoft Graph API — REST API for Microsoft 365
+services |
+| **Delegated token** | OAuth token obtained via user consent, granting
+user-level permissions |
+| **App-only token** | OAuth token obtained via client credentials,
+granting application-level permissions |
+| **Recall AI** | Third-party recording bot service for non-MS-Teams
+meetings |
+| **LiteLLM** | Python library that provides a universal interface to any
+LLM provider |
+| **Celery** | Distributed task queue for Python — handles all background
+processing |
+| **Celery Beat** | Scheduler component of Celery that fires periodic
+tasks |
+| **Chord** | Celery primitive: run header tasks in parallel, then run a
+callback |
+| **VTT** | WebVTT (Web Video Text Tracks) — caption/transcript format |
+| **ical_uid** | iCalendar unique identifier — identifies a meeting
+across calendars |
+| **series_master_id** | ID of the recurring meeting series parent event
+|
+| **Do Not Record** | Domain-based policy that blocks recording for
+meetings with specific attendees |
+| **Meet Now** | Ad-hoc/unscheduled Teams meeting (not on anyone's
+calendar) |
+| **JSM** | Jira Service Management — Atlassian's service desk product |
+| **Tempo** | Time tracking add-on for Jira |
+| **SigNoz** | Open-source observability platform (receives OTel data) |
+| **OTLP** | OpenTelemetry Protocol — standard for telemetry data
+transport |
+| **Kombu** | Python messaging library used by Celery for queue
+management |
+| **Svix** | Webhook delivery platform used by Recall AI |
+| **mark_dirty** | Flag a customer/project's AI insights for regeneration
+|
+
+---
+
+## 18. Open Questions and Verification Checklist
+
+### Questions for Mahesh (Tech Lead)
+
+1. **LLM provider:** What is `LLM_MODEL` set to in production? Which
+provider (OpenAI, Azure, Anthropic)?
+2. **API authentication:** How is API auth enforced? Is there a reverse
+proxy or API gateway upstream? The codebase has user/role/permission
+tables but no auth middleware on routes.
+3. **Feature flags:** Which flags are active in production?
+(`recording_control_enabled`, `recording_settings_enabled`,
+`ms_tenant_routing_enabled`, `ms_tenant_transcripts_enabled`,
+`meeting_notification_enabled`)
+4. **Frontend:** Where is the Elevate frontend repo? Is there API
+contract documentation?
+5. **CI/CD:** What is the deployment pipeline? No CI config found in the
+repo.
+6. **Recall webhook security:** Is the Svix signature verification TODO
+(status.py:149-160) a known gap? Is it planned?
+7. **Database:** Is the PostgreSQL instance managed (RDS, Cloud SQL)?
+What are the backup and recovery procedures?
+8. **Billing tables:** How are `billing_duration`, `billing_milestones`,
+`billing_time_and_material` populated?
+9. **Sensitive fields:** What populates the `sensitive_fields` table and
+who consumes it?
+10. **SharePoint configuration:** What is the structure of the default
+SharePoint site for recordings?
+
+### Verification Checklist
+
+- [ ] Confirm actual LLM provider and model in production
+- [ ] Confirm API authentication mechanism (reverse proxy / gateway)
+- [ ] Confirm which feature flags are enabled in production
+- [ ] Verify Recall webhook signature verification status
+- [ ] Verify database migration state matches model definitions
+- [ ] Confirm frontend API contract expectations
+- [ ] Confirm CI/CD pipeline exists outside this repo
+- [ ] Verify SigNoz is receiving and displaying traces
+- [ ] Confirm S3 bucket permissions and lifecycle policies
+- [ ] Confirm Redis ACL configuration in production
+
+---
+
+## 19. Appendix: File Responsibility Catalogue
+
+### A. Entry Point and Configuration
+
+| File | Responsibility |
+|---|---|
+| `src/main.py` | FastAPI app creation, router registration, middleware,
+health checks |
+| `src/core/config.py` | Pydantic BaseSettings with all env vars and
+feature flags |
+| `src/core/redis.py` | Redis client with connection pooling (singleton)
+|
+| `src/db_engine/db.py` | SQLAlchemy engine, session management
+(get_session + db_session) |
+
+### B. Middleware and Logging
+
+| File | Responsibility |
+|---|---|
+| `src/middleware/logging.py` | Request/response logging,
+trace_id/request_id injection |
+| `src/logger/config.py` | Logging config dict, context vars, JSON
+formatter |
+| `src/logger/logger.py` | Logger factory (get_logger) |
+
+### C. Handlers (Business Logic)
+
+| File | Responsibility |
+|---|---|
+| `src/handlers/ms/calendar.py` | Calendar event validation, queue
+meeting processing |
+| `src/handlers/ms/meetings.py` | Attendance reports, recording copies,
+sync missed transcripts |
+| `src/handlers/ms/subscriptions.py` | Create/delete MS Graph
+subscriptions |
+| `src/handlers/ms/auth/oauth.py` | OAuth2 code flow (authorize +
+callback) |
+| `src/handlers/ms/webhooks/meeting_transcripts.py` | MS transcript
+webhook: regex parse, Redis dedup, task dispatch |
+| `src/handlers/ms/webhooks/meet_now.py` | Tenant-wide Meet Now: flag
+check, parse, dedup, fan-out |
+| `src/handlers/ms/webhooks/user_events.py` | Calendar event webhooks: 2-
+level dedup (exact + debounce) |
+| `src/handlers/llm/meeting_insights.py` | Map insight types to tasks,
+dispatch 7-insight pipeline |
+| `src/handlers/llm/meeting_upsell_opportunities.py` | Upsell purge and
+regeneration dispatch |
+| `src/handlers/llm/transcript_stage_insights.py` | Sales stage insight
+dispatch per category |
+| `src/handlers/recording_control.py` | Stop/start recording: scope,
+platform, threshold, override, dispatch |
+| `src/handlers/on_demand_recording.py` | On-demand Recall bot: validate,
+classify, dedup, create |
+| `src/handlers/transcripts.py` | Transcript purge: S3 delete, cascade,
+mark_dirty |
+| `src/handlers/aws/recordings.py` | S3 access URLs, retry uploads,
+SharePoint-to-S3 migration |
+| `src/handlers/recall_ai/webhooks/status.py` | Recall webhook: Svix
+dedup, event routing |
+| `src/handlers/jira/webhooks/jsm_ticket_events.py` | Jira webhook: event
+dispatch with 10s debounce |
+
+### D. Worker Infrastructure
+
+| File | Responsibility |
+|---|---|
+| `src/worker/app.py` | Celery app config, Beat schedule, task includes,
+broker/backend |
+| `src/worker/routing.py` | ~80 Kombu queues, task-to-queue routing map |
+| `src/worker/signals.py` | task_prerun (trace inject), task_postrun
+(log), task_failure (log) |
+| `src/worker/utils/task_utils.py` | send_task_with_trace() — trace-
+injecting task dispatch |
+
+### E. Services (External API Clients)
+
+| File/Directory | Responsibility |
+|---|---|
+| `src/services/ms/graph/` (35+ files) | MS Graph API calls (users,
+calendars, meetings, transcripts, subscriptions, mail, chat, SharePoint)
+|
+| `src/services/ms/graph/token.py` | App-only token acquisition |
+| `src/services/ms/graph/delegated_token_refresh.py` | Delegated token
+refresh |
+| `src/services/jira/` | Jira API client (accounts, customers, projects,
+licenses, tickets) |
+| `src/services/recall_ai/` | Recall AI API client (bot CRUD,
+transcript/recording download) |
+| `src/services/tempo/` | Tempo API client (worklogs) |
+| `src/services/aws/` | AWS S3 client (upload, download, presigned URLs,
+delete) |
+| `src/services/llm/litellm.py` | LiteLLM wrapper with DB tracking |
+
+### F. Templates
+| Directory | Purpose |
+|---|---|
+| `src/templates/llm/meeting_summary/` | Meeting summary system + user
+prompts |
+| `src/templates/llm/meeting_minutes/` | Meeting minutes prompts |
+| `src/templates/llm/meeting_key_notes/` | Key notes prompts |
+| `src/templates/llm/meeting_action_items/` | Action items prompts |
+| `src/templates/llm/meeting_commitments/` | Commitments prompts |
+| `src/templates/llm/meeting_sentiment/` | Sentiment analysis prompts
+(v2) |
+| `src/templates/llm/meeting_upsell_opportunities/` | Upsell
+opportunities prompts (v2) |
+| `src/templates/llm/transcript_stage_insights/` | Sales stage prompts |
+| `src/templates/llm/jsm_ticket_sentiment/` | JSM ticket sentiment
+prompts (v2/v3/v4) |
+| `src/templates/llm/ai_insight_customer_sentiment_trend/` | Customer
+sentiment trend prompts |
+| `src/templates/llm/ai_insight_project_alerts/` | Project alerts prompts
+|
+| `src/templates/email/meeting_completed/` | Meeting completed HTML email
+|
+
+### G. Utilities
+
+| File | Responsibility |
+|---|---|
+| `src/utils/prompts.py` | Jinja2 environment for LLM prompts,
+render_messages() |
+| `src/utils/emails.py` | Autoescaped Jinja2 for HTML emails,
+render_email() |
+
+### H. DDL and Seeds
+
+| File | Responsibility |
+|---|---|
+| `src/ddl/functions/get_meetings_details.py` | SQL function for meeting
+details view |
+| `src/ddl/seeds/app_config.py` | Seed excluding_upsell_domains config |
+| `src/ddl/seeds/app_config_excluding_meeting_titles.py` | Seed title
+exclusion config |
+| `src/ddl/seeds/app_config_recording_settings.py` | Seed recording
+settings config |
+| `src/ddl/seeds/sales_discovery_questions.py` | Seed sales discovery
+questions |
+
+### I. Docker and Deployment
+
+| File | Responsibility |
+|---|---|
+| `Dockerfile` | Multi-stage build: builder → dev / prod |
+| `docker-compose.yml` | 5-service orchestration |
+| `docker/entrypoint.sh` | Run migrations + start uvicorn |
+| `redis/entrypoint.sh` | Redis ACL setup |
+| `otel-agent/config.yaml` | OTel Collector config → SigNoz |
+| `pyproject.toml` | Poetry manifest, pytest config |
+| `alembic.ini` | Alembic config |
+
+---
+*End of Handbook*
+
+*This document was generated from read-only source analysis of the `paie-
+kensium_elevate-ai-service` repository. No application files were
+modified, no services were started, and no sensitive values were exposed.
+All findings are traceable to actual source code unless marked as
+INFERRED or UNKNOWN.*
+

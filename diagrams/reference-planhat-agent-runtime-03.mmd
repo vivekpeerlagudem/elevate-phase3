@@ -1,0 +1,12 @@
+flowchart LR
+  T["Trigger<br/>object / manual / schedule / webhook"] --> F{"Trigger filtration<br/>pre-change state"}
+  F -- pass --> G["Get<br/>conversation thread, related records"]
+  G --> AI["Use AI<br/>JSON schema, single model"]
+  AI --> B{"Branch on AI output<br/>e.g. OpportunityIdentified"}
+  B -- true --> A1["Create Opportunity<br/>HITL on"]
+  B -- false --> A2["Update Company"]
+  A1 --> E["Schedule Email<br/>HITL on"]
+  E --> WU{"Wait Until<br/>Email Replied, expiry N days"}
+  WU -- Condition met --> N["Notify owner"]
+  WU -- Expired --> E2["Follow-up email"]
+  X["Exit criteria<br/>e.g. Email replied"] -.aborts run.-> E2

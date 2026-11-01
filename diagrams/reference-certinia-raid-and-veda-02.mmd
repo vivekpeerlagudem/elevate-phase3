@@ -1,0 +1,51 @@
+flowchart TD
+    A[User opens Agent Chat / Agentforce Panel] --> B{Select Agent}
+    B --> SDA[Services Delivery Agent - Veda Flex]
+    B --> PA[Project Assistant Agent - Agentforce]
+    B --> WRA[Work Reallocation Agent - Agentforce]
+    B --> CSA[Customer Success Agent]
+
+    SDA --> SDA1[Natural Language Request]
+    SDA1 --> SDA2{Request Type?}
+    SDA2 -->|View| SDA3[Read Project Status + RAID Counts]
+    SDA2 -->|Create| SDA4[Collect missing required fields one at a time]
+    SDA2 -->|Update| SDA5[Fetch Current Record]
+    SDA2 -->|Delete| SDA6[Fetch Record + Check Links]
+    SDA2 -->|Transcript| SDA7[Process Attached File]
+
+    SDA4 --> SDA4a[Confirmation window: all values]
+    SDA4a -->|Confirm| SDA4b[Save Record, Return ID]
+    SDA4a -->|Cancel| SDA4c[Abandon]
+
+    SDA5 --> SDA5a[Current vs Proposed side by side]
+    SDA5a -->|Confirm| SDA5b[Save named fields only]
+    SDA5a -->|Cancel| SDA5c[Abandon]
+    SDA5a -.->|Concurrent edit detected| SDA5d[Re-fetch + Re-confirm]
+    SDA5d --> SDA5a
+
+    SDA6 --> SDA6a{Linked to open RAID records?}
+    SDA6a -->|Yes| SDA6b[Warn + user acknowledges]
+    SDA6b --> SDA6c[Confirmation window]
+    SDA6a -->|No| SDA6c
+    SDA6c -->|Confirm| SDA6d[Recycle Bin - 15 days]
+
+    SDA7 --> SDA7a[Extract Items]
+    SDA7a --> SDA7b[Reconcile with Existing RAID Records]
+    SDA7b --> SDA7c[Approval Cards per type]
+    SDA7c --> SDA7d{Approve / Reject}
+    SDA7d -->|Approve| SDA7e[Create or Update Record]
+    SDA7d -->|Reject| SDA7f[Discard]
+
+    PA --> PA1[Query milestones, tasks, timecards]
+    PA1 --> PA2[Read-only health report]
+
+    WRA --> WRA1[Resource + Date Range]
+    WRA1 --> WRA2[Review Assignments]
+    WRA2 --> WRA3{Action per Assignment}
+    WRA3 -->|Swap| WRA4[Select Replacement + Confirm]
+    WRA3 -->|Split| WRA5[Split Date + Confirm: draft resource request]
+    WRA3 -->|Replace| WRA6[Ready to Staff request + Confirm, assignment deleted]
+
+    CSA --> CSA1[Query Portfolio / Tasks / Accounts]
+    CSA1 --> CSA2[Return Matching Records]
+    CSA2 --> CSA3[Optional follow-up writes - user permissions]

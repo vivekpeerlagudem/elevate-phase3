@@ -1,0 +1,15 @@
+stateDiagram-v2
+  [*] --> Running
+  Running --> PausedForApproval: reaches step with HITL
+  PausedForApproval --> NotifyApprovers: "Approval required" notification to each approver
+  NotifyApprovers --> Reviewing: approver opens preview panel (Notifications or Agents/App Center Approvals tab)
+  Reviewing --> Edited: optional edit of step inputs
+  Edited --> Decision
+  Reviewing --> Decision
+  Decision --> Running: Approve (first approver wins)
+  Decision --> Halted: Reject
+  PausedForApproval --> Expired: Expiration (days) elapses
+  Expired --> Halted: On Expiration = Stop
+  Expired --> Running: On Expiration = Continue (proceed without approval)
+  Running --> [*]
+  Halted --> [*]

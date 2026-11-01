@@ -1,0 +1,1032 @@
+{
+  "summary": {
+    "file": "reference-planhat-agent-runtime.md",
+    "rows": 102,
+    "over_15_words": 0,
+    "found": 91,
+    "not_found": 11,
+    "unfetchable": 0
+  },
+  "results": [
+    {
+      "line": 558,
+      "url": "https://help.planhat.com/en/articles/15535091-human-in-the-loop-hitl-in-automations",
+      "quote": "Stop (Halt automation)",
+      "mode": "static",
+      "words": 3,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 559,
+      "url": "https://help.planhat.com/en/articles/15535091-human-in-the-loop-hitl-in-automations",
+      "quote": "Continue (Proceed without approval)",
+      "mode": "static",
+      "words": 4,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 560,
+      "url": "https://help.planhat.com/en/articles/15535091-human-in-the-loop-hitl-in-automations",
+      "quote": "Only one approver needs to actually do the approval/rejection",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 561,
+      "url": "https://help.planhat.com/en/articles/15535091-human-in-the-loop-hitl-in-automations",
+      "quote": "not Wait steps or Branch steps, and not including triggers",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 562,
+      "url": "https://help.planhat.com/en/articles/15535091-human-in-the-loop-hitl-in-automations",
+      "quote": "access to HITL in Automations is controlled via a toggle switch within Planhat Labs",
+      "mode": "static",
+      "words": 14,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 563,
+      "url": "https://help.planhat.com/en/articles/15535091-human-in-the-loop-hitl-in-automations",
+      "quote": "you can see the history of approvals for that Automation",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 564,
+      "url": "https://help.planhat.com/en/articles/15535091-human-in-the-loop-hitl-in-automations",
+      "quote": "You do not have permission to approve or reject this request",
+      "mode": "static",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 565,
+      "url": "https://help.planhat.com/en/articles/15535091-human-in-the-loop-hitl-in-automations",
+      "quote": "Approvers can do this review/approval from either their Planhat notifications",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 566,
+      "url": "https://help.planhat.com/en/articles/11812698-use-ai-steps-in-automations",
+      "quote": "The AI step also has tools available, e.g. Websearch",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 567,
+      "url": "https://help.planhat.com/en/articles/11812698-use-ai-steps-in-automations",
+      "quote": "The AI step takes a model, a connection and a prompt as input",
+      "mode": "static",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 568,
+      "url": "https://help.planhat.com/en/articles/11812698-use-ai-steps-in-automations",
+      "quote": "You can't have fields from multiple models in the schema",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 569,
+      "url": "https://help.planhat.com/en/articles/11812698-use-ai-steps-in-automations",
+      "quote": "if you change the model you need to setup the configuration again",
+      "mode": "static",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 570,
+      "url": "https://help.planhat.com/en/articles/9590728-custom-automations",
+      "quote": "AI steps consume AI Credits, unless you're using your own AI connections",
+      "mode": "static",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 571,
+      "url": "https://help.planhat.com/en/articles/9590728-custom-automations",
+      "quote": "Triggers (what initiates the Automation)",
+      "mode": "static",
+      "words": 5,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 572,
+      "url": "https://help.planhat.com/en/articles/9590728-custom-automations",
+      "quote": "This is evaluated once a day at 12 noon UTC.",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 573,
+      "url": "https://help.planhat.com/en/articles/9590728-custom-automations",
+      "quote": "Automation Actions - Raw JS function",
+      "mode": "static",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 574,
+      "url": "https://help.planhat.com/en/articles/9590728-custom-automations",
+      "quote": "Custom Automations are charged through Automation Credits",
+      "mode": "static",
+      "words": 7,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 575,
+      "url": "https://help.planhat.com/en/articles/11813533-planhat-ai-credits-and-permissions",
+      "quote": "every customer instance receives 10,000 AI credits on a rolling 30-day basis",
+      "mode": "static",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 576,
+      "url": "https://help.planhat.com/en/articles/11813533-planhat-ai-credits-and-permissions",
+      "quote": "Prompt audit logs",
+      "mode": "static",
+      "words": 3,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 577,
+      "url": "https://help.planhat.com/en/articles/11813533-planhat-ai-credits-and-permissions",
+      "quote": "When you've reached your limit, the AI features can no longer be used",
+      "mode": "static",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 578,
+      "url": "https://help.planhat.com/en/articles/17313953-planhat-os-ai-governance-hub",
+      "quote": "The Pi Data Access settings only ever narrow what Pi can do",
+      "mode": "static",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 579,
+      "url": "https://help.planhat.com/en/articles/17313953-planhat-os-ai-governance-hub",
+      "quote": "Changes can take up to 30 minutes to take effect",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 580,
+      "url": "https://help.planhat.com/en/articles/17313953-planhat-os-ai-governance-hub",
+      "quote": "Speed - for quick, simple work",
+      "mode": "static",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 581,
+      "url": "https://help.planhat.com/en/articles/17313953-planhat-os-ai-governance-hub",
+      "quote": "Advanced - for complex tasks that need more capabilities",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 582,
+      "url": "https://help.planhat.com/en/articles/16597603-planhat-os-sessions",
+      "quote": "Each Session is one of 4 modes",
+      "mode": "static",
+      "words": 7,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 583,
+      "url": "https://help.planhat.com/en/articles/16597603-planhat-os-sessions",
+      "quote": "It never enters shared memory",
+      "mode": "static",
+      "words": 5,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 584,
+      "url": "https://help.planhat.com/en/articles/16597603-planhat-os-sessions",
+      "quote": "Pi will only respond once it's been invited into the Session by @-mentioning (@pi)",
+      "mode": "static",
+      "words": 14,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 585,
+      "url": "https://help.planhat.com/en/articles/16597603-planhat-os-sessions",
+      "quote": "from 0 Credits for something very simple, to 10 Credits for something very complex",
+      "mode": "static",
+      "words": 14,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 586,
+      "url": "https://help.planhat.com/en/articles/16597603-planhat-os-sessions",
+      "quote": "Each Planhat User has a daily allowance of Pi Credits, depending on the User Type",
+      "mode": "static",
+      "words": 15,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 587,
+      "url": "https://help.planhat.com/en/articles/16307128-planhat-os-skills",
+      "quote": "Planhat OS comes with two built-in Skills: meeting-prep and write-skill",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 588,
+      "url": "https://help.planhat.com/en/articles/16307128-planhat-os-skills",
+      "quote": "Up to 64 characters",
+      "mode": "static",
+      "words": 4,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 589,
+      "url": "https://help.planhat.com/en/articles/16307128-planhat-os-skills",
+      "quote": "Up to 200 characters",
+      "mode": "static",
+      "words": 4,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 590,
+      "url": "https://help.planhat.com/en/articles/16307128-planhat-os-skills",
+      "quote": "Up to 16,000 characters",
+      "mode": "static",
+      "words": 4,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 591,
+      "url": "https://help.planhat.com/en/articles/16307128-planhat-os-skills",
+      "quote": "Nothing is saved until you confirm",
+      "mode": "static",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 592,
+      "url": "https://help.planhat.com/en/articles/16307128-planhat-os-skills",
+      "quote": "Pi won't widen a Skill's visibility on its own",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 593,
+      "url": "https://help.planhat.com/en/articles/16307128-planhat-os-skills",
+      "quote": "Can an Automation or Agent use a Skill?",
+      "mode": "static",
+      "words": 8,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 594,
+      "url": "https://help.planhat.com/en/articles/16307128-planhat-os-skills",
+      "quote": "there's no settings screen listing your Skills",
+      "mode": "static",
+      "words": 7,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 595,
+      "url": "https://help.planhat.com/en/articles/17228679-planhat-os-pi-capabilities",
+      "quote": "Draft or send email on behalf of a user",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 596,
+      "url": "https://help.planhat.com/en/articles/17228679-planhat-os-pi-capabilities",
+      "quote": "Pi never deletes a record",
+      "mode": "static",
+      "words": 5,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 597,
+      "url": "https://help.planhat.com/en/articles/17228679-planhat-os-pi-capabilities",
+      "quote": "Pi reads the first 200 characters of each field",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 598,
+      "url": "https://help.planhat.com/en/articles/17228679-planhat-os-pi-capabilities",
+      "quote": "one at a time, after checking which fields the model has",
+      "mode": "static",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 599,
+      "url": "https://help.planhat.com/en/articles/17279163-planhat-os-memory",
+      "quote": "Memory has four levels",
+      "mode": "static",
+      "words": 4,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 600,
+      "url": "https://help.planhat.com/en/articles/17279163-planhat-os-memory",
+      "quote": "Each Memory is up to 500 characters",
+      "mode": "static",
+      "words": 7,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 601,
+      "url": "https://help.planhat.com/en/articles/17279163-planhat-os-memory",
+      "quote": "Nobody can write to another User's personal Memory, not even an Admin",
+      "mode": "static",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 602,
+      "url": "https://help.planhat.com/en/articles/17279163-planhat-os-memory",
+      "quote": "Managers of that Team, and Admins",
+      "mode": "static",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 603,
+      "url": "https://help.planhat.com/en/articles/17279163-planhat-os-memory",
+      "quote": "Pi prioritises your personal Memories, then organization-wide, team, and Role",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 604,
+      "url": "https://help.planhat.com/en/articles/17279163-planhat-os-memory",
+      "quote": "As of now, there's no separate screen/menu to manage Memory.",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 605,
+      "url": "https://help.planhat.com/en/articles/17279163-planhat-os-memory",
+      "quote": "Memories are background context, not instructions.",
+      "mode": "static",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 606,
+      "url": "https://help.planhat.com/en/articles/17733470-planhat-os-pi-tool-permissions",
+      "quote": "The default is that all available Pi tools are enabled",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 607,
+      "url": "https://help.planhat.com/en/articles/17733470-planhat-os-pi-tool-permissions",
+      "quote": "Pi tools are set per Role",
+      "mode": "static",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 608,
+      "url": "https://help.planhat.com/en/articles/17733470-planhat-os-pi-tool-permissions",
+      "quote": "creates or changes something in Planhat",
+      "mode": "static",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 609,
+      "url": "https://help.planhat.com/en/articles/17733470-planhat-os-pi-tool-permissions",
+      "quote": "Pi will explain in words that it can't do that",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 610,
+      "url": "https://help.planhat.com/en/articles/17733470-planhat-os-pi-tool-permissions",
+      "quote": "note that this functionality is not generally released at the time of writing",
+      "mode": "static",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 611,
+      "url": "https://help.planhat.com/en/articles/17278373-planhat-os-pi-data-access",
+      "quote": "every change is recorded in the tenant security log",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 612,
+      "url": "https://help.planhat.com/en/articles/17278373-planhat-os-pi-data-access",
+      "quote": "When Pi Data Access has never been set, Pi runs at each User's full Role",
+      "mode": "static",
+      "words": 15,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 613,
+      "url": "https://help.planhat.com/en/articles/17278373-planhat-os-pi-data-access",
+      "quote": "Only the User's own portfolio",
+      "mode": "static",
+      "words": 5,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 614,
+      "url": "https://help.planhat.com/en/articles/16307194-planhat-os-agents-module",
+      "quote": "Approvals and failures are gathered in one place and can be actioned inline",
+      "mode": "static",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 615,
+      "url": "https://help.planhat.com/en/articles/16307194-planhat-os-agents-module",
+      "quote": "Review what's been produced before you switch it on",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 616,
+      "url": "https://help.planhat.com/en/articles/16307194-planhat-os-agents-module",
+      "quote": "Both produce the same kind of Agent (previously called an Automation)",
+      "mode": "static",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 617,
+      "url": "https://help.planhat.com/en/articles/16307194-planhat-os-agents-module",
+      "quote": "This shows your own notifications",
+      "mode": "static",
+      "words": 5,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 618,
+      "url": "https://help.planhat.com/en/articles/16307194-planhat-os-agents-module",
+      "quote": "Up to 10 items show here",
+      "mode": "static",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 619,
+      "url": "https://help.planhat.com/en/articles/17229796-planhat-os-bring-your-own-llm-byollm",
+      "quote": "at least a 250K-token context window",
+      "mode": "static",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 620,
+      "url": "https://help.planhat.com/en/articles/17229796-planhat-os-bring-your-own-llm-byollm",
+      "quote": "support for tool/function calling",
+      "mode": "static",
+      "words": 4,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 621,
+      "url": "https://help.planhat.com/en/articles/17229796-planhat-os-bring-your-own-llm-byollm",
+      "quote": "Even if you BYOLLM, when you carry out complex tasks using Pi",
+      "mode": "static",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 622,
+      "url": "https://help.planhat.com/en/articles/17229796-planhat-os-bring-your-own-llm-byollm",
+      "quote": "These settings are configured per tenant, not per user",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 623,
+      "url": "https://help.planhat.com/en/articles/17310389-planhat-os-mcp-plugins-overview",
+      "quote": "Two connection types are available",
+      "mode": "static",
+      "words": 5,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 624,
+      "url": "https://help.planhat.com/en/articles/17310485-planhat-os-mcp-plugins-setup-and-management-guide-for-admins",
+      "quote": "Planhat records every tool call, including who made it and when",
+      "mode": "static",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 625,
+      "url": "https://help.planhat.com/en/articles/17310485-planhat-os-mcp-plugins-setup-and-management-guide-for-admins",
+      "quote": "Triggering Pi from inside the external app",
+      "mode": "static",
+      "words": 7,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 626,
+      "url": "https://help.planhat.com/en/articles/17310485-planhat-os-mcp-plugins-setup-and-management-guide-for-admins",
+      "quote": "Three are supported: OAuth, API token, and username/password",
+      "mode": "static",
+      "words": 8,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 627,
+      "url": "https://help.planhat.com/en/articles/17310485-planhat-os-mcp-plugins-setup-and-management-guide-for-admins",
+      "quote": "Client Secrets, API tokens and passwords are stored encrypted in Planhat",
+      "mode": "static",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 628,
+      "url": "https://help.planhat.com/en/articles/17310913-planhat-os-mcp-plugins-faqs",
+      "quote": "Pi only acts on your request in a Session",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 629,
+      "url": "https://help.planhat.com/en/articles/17310913-planhat-os-mcp-plugins-faqs",
+      "quote": "Automated, scheduled retrieval is not part of MCP Plugins at the time of writing",
+      "mode": "static",
+      "words": 14,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 630,
+      "url": "https://help.planhat.com/en/articles/16307144-planhat-os-signals",
+      "quote": "Each Signal is kept for 30 days.",
+      "mode": "static",
+      "words": 7,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 631,
+      "url": "https://help.planhat.com/en/articles/16307144-planhat-os-signals",
+      "quote": "This list is fixed.",
+      "mode": "static",
+      "words": 4,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 632,
+      "url": "https://help.planhat.com/en/articles/16307144-planhat-os-signals",
+      "quote": "Planhat checks for new Conversations to analyze every five minutes",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 633,
+      "url": "https://help.planhat.com/en/articles/16307144-planhat-os-signals",
+      "quote": "Can I dismiss a Signal or tell Planhat it's wrong?",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 634,
+      "url": "https://help.planhat.com/en/articles/17338204-planhat-os-general-faqs",
+      "quote": "Sessions and Pi are available to every user, on all plans.",
+      "mode": "static",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 635,
+      "url": "https://help.planhat.com/en/articles/17338204-planhat-os-general-faqs",
+      "quote": "This is separate from your tenant's AI credits, which are reserved for running Automations",
+      "mode": "static",
+      "words": 14,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 636,
+      "url": "https://help.planhat.com/en/articles/15841814-schedule-email-steps-in-automations",
+      "quote": "the email will be automatically sent, without approval, unless you set up HITL",
+      "mode": "static",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 637,
+      "url": "https://help.planhat.com/en/articles/15841814-schedule-email-steps-in-automations",
+      "quote": "You apply the Human-in-the-Loop (HITL) to the Schedule Email step",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 638,
+      "url": "https://help.planhat.com/en/articles/16774188-wait-until-steps-in-automations",
+      "quote": "so a run never waits forever",
+      "mode": "static",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 640,
+      "url": "https://www.planhat.com/developers/automations/triggers",
+      "quote": "Triggers can be event-driven, scheduled, or initiated via webhooks.",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 641,
+      "url": "https://www.planhat.com/developers/ai/mcp-server",
+      "quote": "Planhat MCP Server now supports connecting with Claude, ChatGPT, and your custom apps.",
+      "mode": "static",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 642,
+      "url": "https://www.planhat.com/developers/ai/mcp-server",
+      "quote": "Each user authenticates with their own Planhat account on first use",
+      "mode": "static",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 643,
+      "url": "https://www.planhat.com/developers/ai/llms/",
+      "quote": "you can bring your own LLM from any provider",
+      "mode": "static",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 644,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Pi on Planhat OS can now search the public web and draft and send emails",
+      "mode": "static",
+      "words": 15,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 645,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Have Pi draft a follow-up email and send it for you",
+      "mode": "static",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 646,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Customers who use automations can now send individual one-to-one emails",
+      "mode": "static",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 647,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "No one is subscribed by default.",
+      "mode": "static",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 648,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Pi is rolling out to a limited set of users",
+      "mode": "rendered",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": false
+    },
+    {
+      "line": 649,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Configure timeouts and fallback behavior if no action is taken",
+      "mode": "rendered",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": false
+    },
+    {
+      "line": 650,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Available to all customers.",
+      "mode": "rendered",
+      "words": 4,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": false
+    },
+    {
+      "line": 651,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "designated users or roles review the output before it proceeds to the next step",
+      "mode": "rendered",
+      "words": 14,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": false
+    },
+    {
+      "line": 652,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Promoting a personal Skill to tenant level requires admin approval",
+      "mode": "rendered",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": false
+    },
+    {
+      "line": 653,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Pi can now call external MCP servers as live tools",
+      "mode": "rendered",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": false
+    },
+    {
+      "line": 654,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Pi can now create new sessions and notify participants.",
+      "mode": "rendered",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": false
+    },
+    {
+      "line": 655,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Enable a recommended set of tools from the Governance page in one step",
+      "mode": "rendered",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": false
+    },
+    {
+      "line": 656,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Exclude specific companies and all their sub-data from Pi's processing",
+      "mode": "rendered",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": false
+    },
+    {
+      "line": 657,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Generally available in consultation with your deployment team.",
+      "mode": "rendered",
+      "words": 8,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": false
+    },
+    {
+      "line": 658,
+      "url": "https://www.planhat.com/changelog",
+      "quote": "Model Context Protocol (MCP) server for external agents [beta]",
+      "mode": "rendered",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": false
+    },
+    {
+      "line": 659,
+      "url": "https://www.planhat.com/pi",
+      "quote": "Join Waitlist",
+      "mode": "static",
+      "words": 2,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 660,
+      "url": "https://www.planhat.com/pi",
+      "quote": "PI FOR Support [beta]",
+      "mode": "static",
+      "words": 4,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    }
+  ]
+}

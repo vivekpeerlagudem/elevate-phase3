@@ -1,0 +1,8 @@
+flowchart TD
+  REQ["User asks Pi to act"] --> ROLE{"User Role allows it?<br/>data model / workflow / portfolio / Pi tool"}
+  ROLE -- no --> DENY1["Pi declines, explains in words"]
+  ROLE -- yes --> CAP{"Pi Data Access tenant cap allows it?<br/>portfolio / model+field CRUD+Export / Pi tool"}
+  CAP -- no --> DENY2["Pi says tenant Pi permissions blocked it,<br/>points to admin"]
+  CAP -- yes --> HARD{"Hard limit?<br/>delete, unsupported page type"}
+  HARD -- yes --> DENY3["Refuse; give record link"]
+  HARD -- no --> EXEC["Execute tool call<br/>no per-call approval documented"]

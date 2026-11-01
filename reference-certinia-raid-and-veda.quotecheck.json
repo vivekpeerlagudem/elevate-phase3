@@ -1,0 +1,552 @@
+{
+  "summary": {
+    "file": "reference-certinia-raid-and-veda.md",
+    "rows": 60,
+    "over_15_words": 0,
+    "found": 60,
+    "not_found": 0,
+    "unfetchable": 0
+  },
+  "results": [
+    {
+      "line": 585,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/RAIDTracker/RAIDTrackerUsing.htm",
+      "quote": "The RAID Tracker is available under the Project Plan tab on the Project Lightning page.",
+      "words": 15,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 586,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/RAIDTracker/RAIDTrackerOverview.htm",
+      "quote": "Risks, Actions, Assumptions, Issues, Decisions, and Dependencies (RAID) throughout the project lifecycle",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 588,
+      "url": "https://help.certinia.com/main/2024.1/Content/PSA/Features/Risks/RiskFields.htm",
+      "quote": "The status of the risk. Values are Open and Closed.",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 589,
+      "url": "https://help.certinia.com/main/2024.1/Content/PSA/Features/Risks/RiskFields.htm",
+      "quote": "Calculated by multiplying the Impact value by the Likelihood value.",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 590,
+      "url": "https://help.certinia.com/main/2024.1/Content/PSA/Features/Issues/IssueFields.htm",
+      "quote": "Values are Not Yet Started, In Progress, Completed, On Hold, Closed - No action.",
+      "words": 14,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 591,
+      "url": "https://help.certinia.com/main/2024.1/Content/PSA/Features/Issues/IssueFields.htm",
+      "quote": "Calculated by multiplying the Impact value by the Priority value.",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 592,
+      "url": "https://help.certinia.com/main/2023.2/Content/PSA/Features/Issues/AboutIssues.htm",
+      "quote": "You can associate risks with issues and vice versa.",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 593,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/Actions/ActionFields.htm",
+      "quote": "options include Not Started, In Progress, and Completed",
+      "words": 8,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 594,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/Assumptions/AssumptionFields.htm",
+      "quote": "Values are Active, Validated, and Invalidated.",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 595,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/Dependencies/DependencyFields.htm",
+      "quote": "Values include Open and Closed.",
+      "words": 5,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 596,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/RAIDTracker/RAIDTrackerPermissions.htm",
+      "quote": "PSA - Manage Projects",
+      "words": 4,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 597,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/CertiniaServicesDeliveryAgentOverview.htm",
+      "quote": "is a conversational Veda Flex AI agent",
+      "words": 7,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 598,
+      "url": "https://help.certinia.com/main/2026.3/Content/Veda/Veda.htm",
+      "quote": "You can access these agents through two deployment options",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 599,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/AttachingTranscript.htm",
+      "quote": "enables you attach a transcript directly to your conversation",
+      "words": 9,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 600,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/AttachingTranscript.htm",
+      "quote": "The attached transcript is not saved to Salesforce.",
+      "words": 8,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 601,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/AttachingTranscript.htm",
+      "quote": "Attachments larger than 900 KB are rejected.",
+      "words": 7,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 602,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/ExtractingRAIDItemsFromATranscript.htm",
+      "quote": "click Approve to apply that card's changes, or Reject to discard them",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 604,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/ExtractingRAIDItemsFromATranscript.htm",
+      "quote": "the agent proposes an update to that record",
+      "words": 8,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 605,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/CreatingRAIDItems.htm",
+      "quote": "The record is saved only after you confirm",
+      "words": 8,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 606,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/UpdatingRAIDItems.htm",
+      "quote": "the agent detects the conflict, re-fetches the latest values, and asks you to confirm again",
+      "words": 15,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 607,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/DeletingRAIDItems.htm",
+      "quote": "whether the record is linked to any other open RAID records",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 608,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/DeletingRAIDItems.htm",
+      "quote": "is recoverable by an administrator for 15 days",
+      "words": 8,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 609,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/Projects/GenerativeAI/CertiniaSummary/CertiniaSummaryPSAFieldsAndButtons.htm",
+      "quote": "Enables you to create an action record from the RAID Next Steps window.",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 610,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/Projects/GenerativeAI/CertiniaSummary/CertiniaSummaryPSAUsing.htm",
+      "quote": "provides up to five recommended actions",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 611,
+      "url": "https://help.certinia.com/main/2026.2/Content/PSA_AI_Agents/Features/CertiniaWorkReallocationAgent/ReallocatingAssignments.htm",
+      "quote": "draft resource request",
+      "words": 3,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 612,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/UpdatingProjectStatus.htm",
+      "quote": "Project Status, Scheduled Status, Scope Status, Financial Status, and Project Status Notes",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 613,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/UpdatingProjectStatus.htm",
+      "quote": "Status notes are saved exactly as you enter them, without rephrasing.",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 614,
+      "url": "https://diginomica.com/certinia-acquires-moonnox-speed-progress-ai-native-psa",
+      "quote": "It is buying Moonnox, a startup that specializes in AI automation",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 615,
+      "url": "https://diginomica.com/certinia-acquires-moonnox-speed-progress-ai-native-psa",
+      "quote": "extend the capabilities of its recently launched Veda AI agent platform",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 616,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/ViewingProjectStatus.htm",
+      "quote": "This feature is part of the Certinia Early Adopter Program.",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 617,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/CustomerSuccessAgent/QueryingYourPortfolioAndTaskAssignments.htm",
+      "quote": "This feature analyzes existing records only.",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 618,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/CustomerSuccessAgent/QueryingYourPortfolioAndTaskAssignments.htm",
+      "quote": "To take follow-up actions, such as creating or updating records",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 619,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/RAIDTracker/RAIDTrackerUsing.htm",
+      "quote": "The grid will load up to 100 records for each view",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 620,
+      "url": "https://help.certinia.com/main/2026.3/Content/Veda/Veda.htm",
+      "quote": "Veda Flex. This our Certinia-native option.",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 621,
+      "url": "https://help.certinia.com/main/2026.3/Content/Veda/Veda.htm",
+      "quote": "Veda for Agentforce. This is the Salesforce-native option.",
+      "words": 8,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 622,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/AttachingTranscript.htm",
+      "quote": "attach only a single transcript file in .txt or .vtt format",
+      "words": 11,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 623,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/Decision/DecisionFields.htm",
+      "quote": "Values include Proposed, Approved, and Rejected.",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 624,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/Decision/DecisionFields.htm",
+      "quote": "Calculated by multiplying the impact and priority values.",
+      "words": 8,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 625,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/Decision/AboutDecisions.htm",
+      "quote": "tracked by Approval Dates to identify when they were finalized",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 626,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/RAIDTracker/RAIDTrackerFields.htm",
+      "quote": "pse__Risk_Name__c",
+      "words": 1,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 627,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/RAIDTracker/RAIDTrackerUsing.htm",
+      "quote": "The RAID grid will automatically reload if there are changes to any RAID record",
+      "words": 14,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 628,
+      "url": "https://help.certinia.com/main/2023.2/Content/PSA/Features/Issues/AboutIssues.htm",
+      "quote": "Alerts are sent to project managers",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 629,
+      "url": "https://help.certinia.com/main/2023.2/Content/PSA/Features/Issues/AboutIssues.htm",
+      "quote": "See Setting up Workflow and Approval Processes to configure alerts.",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 630,
+      "url": "https://help.certinia.com/main/2024.1/Content/PSA/Features/Risks/RiskFields.htm",
+      "quote": "Defaults to true when the Status is Completed or Closed - No action.",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 631,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/ExtractingRAIDItemsFromATranscript.htm",
+      "quote": "the agent proposes the record without an owner rather than asking you to resolve it",
+      "words": 15,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 632,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/ServicesDeliveryAgent/ExtractingRAIDItemsFromATranscript.htm",
+      "quote": "Items that don't match an existing record are proposed as new records.",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 633,
+      "url": "https://help.certinia.com/main/2025.3/Content/PSA/Features/Projects/GenerativeAI/CertiniaSummary/CertiniaSummaryPSAUsing.htm",
+      "quote": "to enter the necessary details and create the corresponding record",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 634,
+      "url": "https://help.certinia.com/main/2026.3/Content/PSA/Features/GenerativeAI/PSAAIFeaturesOverview.htm",
+      "quote": "You can also create action, issue, and risk records directly from the summary.",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 635,
+      "url": "https://help.certinia.com/main/2026.3/Content/CSC/Features/AISummaries/CSAIFeaturesOverview.htm",
+      "quote": "Veda for Agentforce Conversational Agent",
+      "words": 5,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 636,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector/Features/AgentChat/AgentChatOverview.htm",
+      "quote": "Agent chat is the shared chat container that hosts the Veda Flex agents",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 637,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector/Features/AgentChat/AgentChatOverview.htm",
+      "quote": "The agents available to you depend on the custom permissions your administrator has granted you.",
+      "words": 15,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 638,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/AgentChat/UsingAgentChat.htm",
+      "quote": "Each response is recorded in the chat session for auditing.",
+      "words": 10,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 639,
+      "url": "https://help.certinia.com/main/2026.3/Content/AI_Connector_Summer2026/Features/AgentChat/UsingAgentChat.htm",
+      "quote": "agent chat automatically includes the context of the record you are viewing",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 640,
+      "url": "https://help.certinia.com/main/2026.3/Content/PSA_AI_Agents/Features/CertiniaProjectAssistantAgent/CertiniaProjectAssistantAgentOverview.htm",
+      "quote": "This Veda for Agentforce agent provides a comprehensive view of the project",
+      "words": 12,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 641,
+      "url": "https://help.certinia.com/main/2026.3/Content/PSA_AI_Agents/Features/CertiniaWorkReallocationAgent/CertiniaWorkReallocationAgentOverview.htm",
+      "quote": "uses a Salesforce Employee agent",
+      "words": 5,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 642,
+      "url": "https://help.certinia.com/main/2026.3/Content/PSA_AI_Agents/Features/CertiniaWorkReallocationAgent/CertiniaWorkReallocationAgentPermissions.htm",
+      "quote": "Enables users to create resource requests.",
+      "words": 6,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 643,
+      "url": "https://help.certinia.com/main/2026.3/Content/PSA_AI_Agents/Features/CertiniaWorkReallocationAgent/CertiniaWorkReallocationAgentPermissions.htm",
+      "quote": "executes a smart action plan",
+      "words": 5,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 644,
+      "url": "https://help.certinia.com/main/2026.3/Content/PSA/Features/SkillsCertifications/SkillExtraction/SkillExtractionOverview.htm",
+      "quote": "From the Manage Skills and Certifications window, you can add skills and certifications",
+      "words": 13,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 645,
+      "url": "https://diginomica.com/certinia-acquires-moonnox-speed-progress-ai-native-psa",
+      "quote": "Moonnox has the ability to track token cost",
+      "words": 8,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    },
+    {
+      "line": 646,
+      "url": "https://diginomica.com/certinia-acquires-moonnox-speed-progress-ai-native-psa",
+      "quote": "cut the time taken to draft a solution architecture document from 80 hours to 20",
+      "words": 15,
+      "length_ok": true,
+      "fetch": "ok",
+      "found": true
+    }
+  ]
+}

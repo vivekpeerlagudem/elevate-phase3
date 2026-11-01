@@ -1,0 +1,39 @@
+sequenceDiagram
+    participant User
+    participant Agent as Services Delivery Agent
+    participant SF as Salesforce/PSA
+
+    User->>Agent: Open chat, select agent
+    User->>Agent: Attach one .txt/.vtt file (max 900 KB, not persisted)
+    User->>Agent: "Extract RAID items for Project Alpha"
+
+    Agent->>User: Which project? (only if not stated, never inferred from transcript)
+    User->>Agent: "Project Alpha"
+
+    Agent->>SF: Read existing RAID records for Project Alpha
+    SF-->>Agent: Risks, Issues, Actions, Assumptions, Decisions, Dependencies
+
+    Agent->>Agent: Extract items, reconcile against existing records
+
+    loop Per RAID type: Risk, Action, Assumption, Issue, Decision, Dependency
+        alt No match
+            Agent->>User: Approval card - create
+        else Match with new details
+            Agent->>User: Approval card - update
+        else Exact match
+            Agent->>User: Listed as unchanged (no card)
+        else Unclassifiable
+            Agent->>User: Listed in chat (no card)
+        end
+
+        alt Approve
+            User->>Agent: Approve
+            Agent->>SF: Create or update record
+            SF-->>Agent: Saved
+        else Reject
+            User->>Agent: Reject
+            Agent->>Agent: Discard proposal
+        end
+    end
+
+    Agent->>User: Summary of created and updated records

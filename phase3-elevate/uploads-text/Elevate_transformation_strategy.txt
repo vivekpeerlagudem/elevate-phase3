@@ -1,0 +1,766 @@
+Kensium Elevate AI — Reverse-Engineering,
+Competitive & Transformation Strategy
+
+Prepared for: Product Development Engineering (trainee) for sharing with tech lead and
+product/engineering leadership
+Date: 2026-10-23
+Scope: paie-kensium_elevate-ai-service repository (912 files, 713 Python) + two prior audit
+documents + competitor/market research conducted earlier in this engagement.
+Method: The two audit PDFs (the 14-page Architecture Walkthrough and the 38-page Deep
+Reverse-Engineering Handbook) were treated as evidence, not ground truth. Their highest-stakes
+claims were independently re-verified against the actual extracted source. Competitor and
+pricing facts carry URLs and an access date of 2026-10-17 from the earlier research pass.
+
+
+
+Confidence labels used throughout:
+
+
+   VERIFIED — I checked this against the source code in this pass.
+   AUDIT — reported by one or both prior audit PDFs, consistent with code structure, not
+   independently re-checked line-by-line here.
+   RESEARCH — from the earlier competitor/market research (cited, access date 2026-10-17).
+   INFERRED — reasoned conclusion, flagged as such.
+   UNKNOWN — cannot be determined from available materials; needs leadership/ops
+   confirmation.
+
+
+A standing caveat: everything here is read-only analysis. No code was run, no tests executed, no
+production system observed. "It is in the code" is not "it is switched on in production" — many
+behaviours are gated by environment flags whose production values are UNKNOWN.
+
+
+
+
+1. Executive summary (for CEO / CTO)
+
+Elevate AI is a FastAPI + Celery backend that captures Microsoft Teams meetings (via Microsoft
+Graph webhooks) and externally-hosted meetings (via Recall AI bots), transcribes them, and runs
+each transcript through an LLM (via LiteLLM) to produce seven insight types — summary,
+minutes, key notes, action items, commitments, sentiment, and upsell opportunities — plus
+cross-entity insights (customer sentiment trends, project alerts). It also syncs Jira/JSM, Tempo
+worklogs, and runs JSM-ticket sentiment analysis. It exposes 26 REST routers under /api/v1,
+consumed by a separate Elevate web frontend (not in this repo). (VERIFIED stack; AUDIT
+workflow breadth.)
+
+
+
+The engineering is genuinely competent for its stage: a strict layered architecture (routes
+handlers repositories/services; worker tasks worker utils), one dedicated Celery queue per
+task type (74 queues) so no slow task blocks another, acks_late + reject_on_worker_lost for
+crash-safety, Redis deduplication on at-least-once webhooks, OpenTelemetry tracing to SigNoz, a
+multi-stage non-root Dockerfile, and ~180 test files. This is not a prototype; it is a maintainable
+service built by someone who knows the patterns. (VERIFIED.)
+
+
+
+The three findings that matter most:
+
+
+1. There is no authentication or authorization on the API. Zero auth dependencies exist on any of
+   the 26 routers (VERIFIED). If nothing upstream enforces it, every endpoint — including ones
+   that create recording bots, delete transcripts, and trigger LLM spend — is open. This is the
+   single highest-priority item to confirm and, if unmitigated, close. It is almost certainly handled
+   by an upstream proxy/gateway today (the users/roles/role_permissions tables exist), but that
+   must be confirmed, not assumed.
+2. The product's defensible idea is real, but its moat is not the feature list. Elevate's distinctive
+   combination — sentiment across both meetings and JSM tickets on one bounded −100/+100
+   scale, framed as delivery/project health (not CS-ops), with a first-party notetaker and an
+   interactive Teams bot — is not matched as a whole by any single competitor reviewed
+   (RESEARCH). But each element individually is one roadmap step away for Planhat, Avoma,
+   Fireflies, or Rocketlane. The moat has to be built deliberately: evidence-grounded, explainable
+   insights tied to Kensium's own delivery data, not more insight types.
+3. "Beyond Planhat" is not a stack question. The current stack can carry Elevate to a credible
+   commercial product. What stands between "works internally" and "sellable" is not FastAPI vs.
+   anything else — it is enterprise readiness (SSO, SCIM, SOC 2, tenant isolation, data-residency,
+   recording-consent) and evidence that a buyer exists. None of that is in the repo today, and
+   none of it is a framework choice.
+
+
+The ten highest-priority decisions are collected in Section 14. The single most important:
+confirm how auth is enforced in production before anything else.
+
+
+
+
+2. Evidence inventory and confidence assessment
+
+Source                 Type            Date          What it establishes        Evidence quality
+paie-                  Primary         snapshot      The actual                 Highest — but
+kensium_elevate-       source (912     2026-10-13     implementation            read-only; runtime/
+ai-service repo        files)                                                   prod config not
+                                                                                observable
+Deep Reverse-          Prior audit     2026-10-21     Exhaustive file-by-file   High; self-labelled
+Engineering                                           map, workflows, DB        CONFIRMED/
+Handbook (38 pp)                                      lifecycle, security       INFERRED/NOT
+                                                      findings                  FOUND; my spot-
+                                                                                checks matched it
+Architecture           Prior audit     Oct 2026       Folder map, lifecycle,    High; consistent
+Walkthrough (14        (onboarding)                   "what to tell Mahesh"     with handbook
+pp)
+Earlier competitor/    This            2026-10-17     Planhat/Gainsight/      Medium-high;
+market research        engagement                     ChurnZero/Totango/      every claim cited,
+                                                      Avoma/Fireflies/        access-dated
+                                                      Rocketlane positioning,
+                                                      pricing, stacks, market
+                                                      trends
+Elevate v2.2 public    Primary         Aug 2026       Documented product        High for product
+user guide             (vendor)                       surface & limitations     behaviour
+
+
+Reconciliation of the two audits. They agree on substance. Minor numeric differences: router
+count (walkthrough says "25", handbook says 26 — VERIFIED: 26); model count ("38+" both —
+models/__init__.py has 44 import lines, so 38+ is correct); queue count (handbook "80" —
+VERIFIED: 74 Queue(...) definitions); migrations ("~70" both, not re-counted). One factual
+correction to the handbook: it states the LLM call is await litellm.acompletion(); the actual code
+calls synchronous completion() inside the Celery worker (VERIFIED) — behaviourally equivalent in
+a sync worker, but the handbook's async claim is wrong.
+
+
+
+My independent verification results (this pass):
+
+
+Claim              Source said       I checked            Result
+Stack &            Py 3.13,          pyproject.toml       VERIFIED (FastAPI 0.123.5, Celery 5.6,
+versions           FastAPI,                               Redis 7.1, SQLModel 0.0.27,
+                   Celery 5,                              SQLAlchemy 2.0.44, psycopg v3, litellm
+                   litellm, etc.                          <2.0, OTel, boto3)
+No API auth        NOT FOUND in grep routes/ for          VERIFIED — 0 auth dependencies on
+middleware         code         auth Depends              any router
+Recall             TODO              recall_ai/           VERIFIED — Svix verify block
+webhook            comment           webhooks/            commented out
+signature                            status.py:149-160
+unverified
+No RAG/           NOT FOUND        grep src/             VERIFIED — only "embedding" uses are
+embeddings/                                              SQL-escape docstrings
+vectors
+Celery            acks_late,       worker/app.py         VERIFIED — acks_late=True,
+reliability       prefetch=1                             reject_on_worker_lost=True, prefetch=1,
+config                                                   soft 300s/hard 360s
+74–80             ~80              worker/routing.py     VERIFIED — 74 Queue definitions
+dedicated
+queues
+No CI in repo     NOT FOUND        .github/, *.yml       VERIFIED — no CI workflow files
+                                                         present
+No conftest /     NOT FOUND        find conftest.py      VERIFIED — none
+mocked DB
+Temperature    CONFIRMED           services/llm/         VERIFIED —
+omitted for                        litellm.py            _NO_TEMPERATURE_PREFIXES =
+gpt-5/o1/o3/o4                                           ("gpt-5","o1","o3","o4")
+
+
+Conclusion: both audits are trustworthy. I build on them below rather than repeating their file
+catalogue (see the handbook's Section 19 appendix for the exhaustive per-file map).
+
+
+
+
+3. What Elevate is and the problem it solves
+
+The problem. Kensium runs many parallel commerce/ERP implementation projects. Delivery
+health — is this customer slipping, is this project at risk, did we commit to something we're not
+delivering — lives scattered across Teams calls, Jira/JSM tickets, and worklogs, where no human
+reliably reads all of it. Elevate's thesis: observe those surfaces automatically, score sentiment
+and risk, and surface it to delivery/CS/sales/leadership in one place "without toggling between
+tools." (Vendor user guide; RESEARCH.)
+
+
+
+What it does today (AUDIT, structurally VERIFIED):
+
+
+   Captures Teams meetings via MS Graph transcript-subscription webhooks; captures external
+   meetings (Zoom/Meet) via Recall AI bots.
+   Stores transcripts (VTT) in PostgreSQL and recordings in S3 (SharePoint S3migration path
+   exists).
+   Runs 7 per-meeting LLM insight types + per-JSM-ticket sentiment + 2 cross-entity aggregates
+   (customer sentiment trend, project alerts).
+   Syncs Jira accounts/customers/projects/licenses + Tempo worklogs on schedules; JSM
+   tickets in real time via webhook.
+   Lets users stop/start recording per occurrence or series, trigger on-demand recording, and
+   enforce Do-Not-Record domain policies.
+   Emits an email on meeting-insight completion; sends pre-meeting chat notices in Teams.
+
+
+What makes it not a generic meeting summarizer (INFERRED from architecture): the cross-entity
+layer. Per-meeting summaries are commodity. Elevate's mark_dirty
+process_ai_insight_customer_sentiment_trend / project_alerts pipeline aggregates across
+meetings and tickets per customer/project — that aggregation, tied to Kensium's delivery context,
+is the part a horizontal notetaker does not do.
+
+
+       Sources
+
+  Teams / MS Graph
+                       webhook
+                                                                                                                                                           LiteLLM LLM
+                                                                                                                           transcript, context                                                           7 insights + sentiment
+
+    Recall AI bots
+                       webhook
+                                                                                                                                                                                                                                               Elevate Web UIseparate repo
+                                      FastAPI webhooks                                           Celery workers74 queues       recordings                             S3
+                                                         enqueue, trace   Redis broker + dedup                                                                                                                                    PostgreSQL
+
+      Jira / JSM
+                     webhook + sync
+                                                                                                                                                 Cross-entity insights:sentiment trend, project alerts
+
+
+
+                                                                                                                               mark_dirty
+        Tempo
+                          sync
+
+
+
+
+4. Current architecture and component
+responsibilities (VERIFIED structure)
+
+Strict one-directional layering, no circular imports (AUDIT; consistent with code):
+
+
+1. Routes (src/routes/, 26 routers) — thin controllers; validate via Pydantic, call handlers.
+2. Handlers (src/handlers/) — business orchestration; decide what to do, enqueue Celery work.
+3. Repositories (src/repositories/) — DB CRUD; own commit/rollback.
+4. Services (src/services/) — external API clients (MS Graph 35+ files, Jira, Recall AI, Tempo,
+   AWS S3, LiteLLM); no DB access.
+5. Worker tasks (src/worker/tasks/) — thin .delay() wrappers.
+6. Worker utils (src/worker/utils/) — the real background business logic.
+7. Models (src/models/, 38+ SQLModel classes) / Schemas (src/schemas/, Pydantic).
+
+
+Cross-cutting (VERIFIED): core/config.py (Pydantic BaseSettings, all env vars + feature flags,
+@lru_cache singleton); core/redis.py (pooled client, max 50 conns, singleton); db_engine/db.py
+(get_session FastAPI dependency + db_session Celery context manager; pool size 5,
+max_overflow 10, recycle 1800s); middleware/logging.py (trace_id/request_id injection); worker/
+signals.py (trace propagation into tasks); worker/routing.py (queue-per-task).
+
+
+
+Runtime topology (VERIFIED from docker-compose + Dockerfile): 5 compose services — app
+(Uvicorn:8000), celery-worker, celery-beat, redis:7.4, otel-agent. PostgreSQL is external/managed
+(commented out of compose). Multi-stage Dockerfile, non-root kensium user, dev/prod stages.
+Entrypoint runs alembic upgrade head then starts Uvicorn.
+
+
+
+Request lifecycle (VERIFIED/AUDIT): HTTP LoggingMiddleware (trace) CORS FastAPI route
+  Pydantic validation handler repository/DB, and for heavy work send_task_with_trace()
+Redis Celery worker worker util services/LLM/DB. HTTP returns immediately with a queued
+status.
+
+
+
+Background lifecycle (VERIFIED): Celery Beat fires 14 scheduled jobs (daily syncs, 15/20-min
+Tempo, 5-min chat notices, 2-min AI-insight scheduler, 5-min reaper, daily coverage sweep,
+recording reconcile/cleanup/policy). Each enqueues to a dedicated queue.
+
+
+
+
+5. End-to-end workflows (AUDIT, spot-verified)
+
+The handbook traces these exhaustively; the critical path is the transcript workflow:
+
+
+
+     MS Graph                                  FastAPI webhook                             Redis                Celery worker                           PostgreSQL                                  LiteLLM
+
+
+            POST /ms/webhooks/meeting-transcripts
+
+                                  validationToken handshake OR notification
+
+
+
+                                                             SET NX dedup (5-min TTL)
+
+                        202 (queued)
+
+                                                                    process_meeting_transcript_notification
+
+                                       fetch transcript metadata + VTT (delegated token)
+
+                                                                                                    check recording_control / Do-Not-Record
+
+
+
+                                                                                                                                upsert transcript row
+
+                                                                                               chord [recording_url, attendance] post_processing
+
+
+
+                                                                                                    queue process_meeting_insights (+60s)
+
+
+
+                                                                                                                                              7 insight tasks (summary…upsell)
+
+                                                                                                                                                                 store insights + llm_runs record
+
+                                                                                                     mark_dirty cross-entity regeneration
+
+
+
+
+     MS Graph                                  FastAPI webhook                             Redis                Celery worker                           PostgreSQL                                  LiteLLM
+Other workflows (AUDIT): external-meeting Recall capture; on-demand recording (Redis lock per
+join_url, 429 on contention, synchronous bot create); recording control stop/start (scope
+resolution single/occurrence/series, platform detection MS vs Recall, override rows + reconcile
+sweep); JSM ticket sentiment (webhook 10s Redis debounce sync LLM sentiment);
+transcript purge (S3 delete + cascade to 7 child tables + mark_dirty).
+
+
+
+Failure-path observations (AUDIT, INFERRED severity): dedup handlers "fail open" on Redis loss
+(safe but can double-process); Celery chords can skip the callback if a header task fails; LLM
+output parsing may fail silently on unexpected format (only 1 temperature-handling test found).
+These are real reliability edges worth hardening (Section 8).
+
+
+
+
+6. Database and data lifecycle
+
+Technology (VERIFIED): PostgreSQL via psycopg v3; SQLModel (SQLAlchemy 2.0 + Pydantic);
+Alembic (~70 migrations); pool size 5 / max_overflow 10 / recycle 1800s. Celery result backend
+is also PostgreSQL (celery_taskmeta).
+
+
+
+Model graph (AUDIT, FK-confirmed in handbook): projects (1) meetings (SET NULL)
+transcripts (CASCADE) {insights, action_items, commitments, sentiments, upsell_opportunities,
+attendance, stage_insights} all CASCADE. customers jsm_tickets {comments, sentiments}.
+Plus users (with password_hash), roles, role_permissions, role_assignments, tokens, s3_storage,
+ai_insights, ai_insight_jobs, llm_runs, recall_ai_bots, meeting_recording_override, audit_log, billing
+tables, sensitive_fields.
+
+
+
+Lifecycle risks (AUDIT + INFERRED):
+
+
+   Staleness is handled by design via mark_dirty + the 2-minute scheduler — good. But it is a
+   derived-data cache; if the scheduler/reaper wedges, insights silently go stale. Observability on
+   dirty-queue depth matters.
+   Tenant isolation. The data model is single-tenant-shaped (no tenant_id partitioning visible;
+   AUDIT/INFERRED). Fine for internal Kensium use; a blocker for external multi-customer SaaS
+   — see Section 9.
+   billing_* and sensitive_fields tables exist but their population path is UNKNOWN (handbook
+   open question). If sensitive_fields is meant to drive PII redaction, its being unpopulated would
+   be a privacy gap — must confirm.
+   No integration tests against a real DB (all mocked), so migration/schema drift would not be
+   caught by the test suite (VERIFIED: no conftest, mocked DB per audit).
+7. Technology stack assessment
+
+Layer           Tech (VERIFIED)        Verdict   Notes
+Language        Python 3.13            Keep      Correct for an AI/LLM-centric service
+API             FastAPI 0.123 +        Keep      Async, typed, OpenAPI; appropriate
+                Uvicorn
+ORM             SQLModel 0.0.27 /      Keep,     SQLModel is pre-1.0 and lags SQLAlchemy;
+                SQLAlchemy 2.0         watch     the SQLAlchemy 2.0 escape hatch is already
+                                                 available if SQLModel blocks you
+Migrations      Alembic                Keep      Standard; review autogenerate by hand
+DB              PostgreSQL             Keep      Can serve relational + JSON + FTS + pgvector;
+                (managed, external)              no second DB needed yet
+Broker/cache Redis 7.4 (broker +       Keep      Fine at this scale; broker durability is the trade-
+             dedup + locks)                      off (below)
+Workers         Celery 5.6, 74         Keep      Well-configured; queue-per-task is unusual but
+                queues, acks_late                gives strong isolation
+Result          PostgreSQL             Keep,     DB-backed results add write load; prune
+backend                                watch     celery_taskmeta
+LLM             LiteLLM <2.0,          Keep      Good provider-abstraction choice; see Section
+                provider by env                  10
+Storage         AWS S3 (boto3)         Keep      Multipart + presigned URLs
+Observability   OpenTelemetry          Keep      Genuinely ahead of most teams this size
+                SigNoz
+Containers      Docker multi-stage,    Keep      Good hygiene
+                non-root
+Auth            None in app            Act       Confirm upstream enforcement; if absent, this
+                                                 is critical
+CI/CD           None in repo           Act       No pipeline, no automated test gate
+                                                 (VERIFIED)
+
+
+Decision-matrix headlines (do NOT adopt without a measured trigger):
+
+
+   Celery Temporal? Only if durable multi-step AI workflow state becomes a real pain. The
+   chord-callback-skip edge is a reason to harden Celery (idempotency, DLQ), not to migrate yet.
+   Separate analytical DB (Snowflake/warehouse)? Not until dashboard query load measurably
+   hurts OLTP. Postgres read replicas + materialized views first.
+   Vector DB? Not until a feature needs semantic retrieval; pgvector in the existing Postgres is
+   the first step, not Pinecone.
+   Redis broker RabbitMQ/SQS? Only if lost-task durability becomes a measured incident.
+   Today's acks_late mitigates most of it.
+
+
+
+
+8. Technical debt and prioritized engineering risks
+
+Ranked by (impact × likelihood), severity in brackets:
+
+
+1. [CRITICAL] No application-layer authN/authZ (VERIFIED). Confirm the upstream proxy/
+    gateway enforces it. If it does, document and add defence-in-depth (a verify-JWT
+    dependency). If it doesn't, every endpoint is exposed, including bot-creation and transcript-
+    deletion. This gates any external exposure.
+2. [HIGH] Recall AI webhook signature unverified (VERIFIED — TODO commented out). Any
+    POST to /recall-ai/webhooks/status is processed after dedup. Implement the Svix wh.verify()
+    block that is already stubbed. Low effort, high value.
+3. [HIGH] Jira webhook has no signature verification (AUDIT). Same class of risk; add a shared-
+    secret/HMAC check.
+4. [HIGH] No CI/CD and no automated test gate (VERIFIED). 180 test files exist but nothing runs
+    them on push. Add a pipeline (lint, type-check, pytest, Alembic model-vs-migration check,
+    image scan) — foundational for everything else.
+5. [MEDIUM] No integration/E2E tests; DB fully mocked (VERIFIED/AUDIT). The
+    webhook task LLM store       chain is untested as a chain; migration drift undetectable. Add a
+    testcontainers-Postgres suite for the critical path.
+6. [MEDIUM] LLM output parsing can fail silently (AUDIT/INFERRED). No structured-output
+    schema validation visible; a malformed LLM response may be stored or dropped quietly. Add
+    Pydantic validation of parsed insights + an eval suite (Section 10).
+7. [MEDIUM] Multi-tenant isolation absent (INFERRED). Acceptable internally; a blocker for
+    SaaS. Design now, build when productization is decided.
+8. [MEDIUM] sensitive_fields / PII redaction path UNKNOWN. Transcripts are the most sensitive
+    data in the system and may be logged at DEBUG (AUDIT, unverified). Confirm redaction and
+    LOG_LEVEL in prod.
+9. [LOW] Chord callback-skip and dedup fail-open edges (AUDIT). Add idempotency keys and a
+    dead-letter/reaper path for stuck chords (a reaper already exists for insight jobs — extend the
+    pattern).
+10. [LOW] CORS origins hardcoded incl. an internal IP (VERIFIED). Move to env config; dev
+    artifact, low risk but untidy.
+9. Security, privacy, and enterprise-readiness
+
+Verified today: secrets via env (no hardcoded secrets, AUDIT); Pydantic input validation; ORM-
+only queries (no SQL-injection surface); MS Graph webhook validationToken handshake; Redis
+dedup; on-demand handler strips query strings from join URLs before logging; non-root container.
+
+
+
+Gaps that block external sale (the "enterprise-readiness bar" buyers now demand — RESEARCH):
+
+
+Requirement         Status               Note
+SSO (SAML/OIDC) Not in repo              Buyers treat as non-negotiable baseline (RESEARCH,
+                                         WorkOS 2026)
+SCIM provisioning Not in repo            Expected for enterprise
+SOC 2 Type II       No evidence          Months + a dedicated owner; Planhat & ChurnZero
+                                         publish it (RESEARCH)
+ISO 27001           No evidence          —
+Tenant isolation    Single-tenant        Blocker for SaaS
+                    shaped
+                    (INFERRED)
+Data residency      Not addressed        EU/India regulated verticals ask for processing-region
+                                         pinning (RESEARCH)
+Recording           Policy flags exist   EU all-party-consent (12 countries) + EU AI Act Art. 50
+consent             (Do-Not-Record)      (from 2 Aug 2026) require host-controlled consent
+                                         flows (RESEARCH) — a design-level constraint
+Webhook             Partial/absent       Recall TODO, Jira none (VERIFIED/AUDIT)
+signature
+verification
+Audit trail         audit_log table      Population/coverage UNKNOWN
+                    exists
+
+
+Do not claim SOC 2 / ISO / GDPR compliance — there is no evidence for any of it. These are
+build-items, not statements.
+
+
+
+
+10. Current AI implementation and its limits
+(VERIFIED)
+
+What it is: direct LLM completion calls through LiteLLM. run(messages, insight_type,
+reference_id) creates an llm_runs row (status pending), calls completion() (temperature omitted
+for gpt-5/o1/o3/o4 families — VERIFIED), parses the response, updates the run (completed/
+failed, tokens, model). Prompts are Jinja2 system.md.jinja + user.md.jinja pairs per insight type
+(11 template sets).
+
+
+
+What it is NOT (VERIFIED — these are genuinely absent, not just undocumented):
+
+
+   No RAG, no embeddings, no vector search — confirmed by grep; the only "embedding" strings
+   are SQL-escape docstrings.
+   No tool-calling, no agents, no orchestration framework — direct completion only.
+   No structured-output schema enforcement at the LLM boundary (INFERRED from repository
+   store operations; no Pydantic-validated function-calling visible).
+   No evaluation suite / regression tests for AI quality — 180 tests, but AI quality is not among
+   them (AUDIT; 1 temperature test).
+   No retry at the LLM layer — relies on Celery retry (AUDIT).
+
+
+This is the right starting point, not a deficiency. Direct completion with a provider abstraction is
+simpler, cheaper, and more debuggable than RAG/agents for fixed-shape insight generation. The
+gaps that actually matter:
+
+
+1. Structured outputs + schema validation (S effort, high value). Validate every parsed insight
+   against a Pydantic schema; reject/repair on failure. Kills the silent-parse-failure risk.
+2. An evaluation harness (M effort, high value). Labelled set of meetings/tickets measure
+   action-item precision/recall, sentiment agreement, hallucination/citation correctness, cost &
+   latency per meeting. Without it, no one can tell whether a prompt or model change helped.
+   This is the prerequisite for any AI improvement.
+3. Evidence-grounded insights with citations (M effort, differentiator). Make each sentiment
+   score / risk alert cite the specific transcript turns and ticket comments that drove it. Buyers
+   now ask for AI explainability, and no competitor has made it their core positioning
+   (RESEARCH). This is Elevate's most defensible AI wedge and it uses data the system already
+   has — no RAG required, just span attribution.
+4. Grounded natural-language Q&A ("why is this customer at risk?") — this is where RAG/
+   semantic retrieval might be justified later, but start with structured SQL over the existing
+   insight tables + citations; only add pgvector if keyword/SQL retrieval measurably misses.
+
+
+Graduated AI-action path (do in order, never skip the gate): summarize recommend draft
+(ticket/follow-up) execute approved action via integration limited autonomy only after reliable
+permissions, evals, audit, and human oversight exist. Never let an AI inference become a
+business fact or trigger an irreversible action automatically.
+
+
+
+
+11. Competitor landscape (RESEARCH, access date
+2026-10-17)
+
+Full detail is in the earlier report; the decision-relevant synthesis:
+
+
+                                           Elevate: delivery-health + cross-channel sentiment
+
+
+
+
+ closest persona/delivery
+                            price anchor              price anchor                                     closest architecture                     closest integration set
+ framing
+
+      PSA / delivery                         Meeting / conversation                                                                       CS platforms
+       Rocketlane              Avoma         intel  Fireflies                                   Gong         Planhat          Gainsight                  ChurnZero        Totango
+
+
+
+
+    Planhat — closest architectural analogue: same multi-role scope (incl. professional services),
+    same connectors (Jira, Teams, meeting-intel), published SOC 2 Type II + ISO 27001:2022 +
+    GDPR, Pi AI agent. Elevate is thin on features here; its edge must be JSM-native scoring, first-
+    party notetaker, and delivery framing. (RESEARCH)
+    ChurnZero — closest named integration footprint (Jira + Zoom + Teams + Slack + email) and
+    compliance set (SOC 2 II + ISO 27001 + HIPAA + GDPR); mid-market. (RESEARCH)
+    Gainsight — enterprise incumbent; Staircase AI gives it meeting+email+chat+ticket
+    sentiment; heavy, expensive, long implementation. The price/complexity ceiling buyers
+    compare against. (RESEARCH)
+    Avoma / Fireflies — per-seat notetaker price anchors (~$20–40/user/mo at Enterprise);
+    Fireflies has native Jira + SOC 2 II + HIPAA. These define the "notetaker commodity
+    price." (RESEARCH)
+    Rocketlane — closest persona match (revenue-responsible delivery teams), per-account
+    sentiment + delivery-risk flags, Jira+HubSpot+Salesforce — but no AI notetaker. The nearest
+    thing to Elevate's delivery framing. (RESEARCH)
+
+
+No single reviewed competitor combines (a) a notetaker joining Zoom/Meet/Teams, (b)
+sentiment on meetings AND JSM tickets, (c) delivery/CS/sales persona orientation, and (d)
+upsell-signal typology. That combination is Elevate's positional claim — but it is a combination,
+not a feature nobody else can build. (RESEARCH/INFERRED)
+
+
+
+Competitor stacks (RESEARCH, mostly INFERRED from job posts): meeting-intel vendors cluster
+on Python + Django on AWS with Kafka + Elasticsearch + Snowflake; Gainsight is Java/Spring +
+polyglot stores. No vendor publicly commits to an LLM provider or a vector DB. Elevate's Python/
+FastAPI/Postgres/Redis/Celery baseline is mainstream; its divergences (FastAPI over Django,
+Celery-only vs. Kafka backbone, no exposed search/warehouse layer) are reasonable for its
+stage, not deficiencies. (RESEARCH)
+
+
+
+
+12. Future architecture
+
+Option A — Pragmatic evolution (recommended now)
+
+Keep the modular monolith. Fix the highest-impact gaps without re-architecting.
+                    API gateway / proxyenforce authN/authZ + rate limit
+                                                                                  CI/CD: test + migration-check + scan
+
+
+
+
+                                                                                                 gates
+
+                                                   FastAPI app+ verify-JWT dependency
+
+
+
+
+                                                                                                  OTel SigNoz+ AI cost/latency spans
+  PostgreSQL+ RLS tenant scoping+ pgvector later
+                                                           Redis broker+locks
+
+
+
+
+                                                   Celery workers+ idempotency keys + DLQ
+
+
+
+
+                      LiteLLM gateway+ structured output + eval hooks
+
+
+                                                                                S3 encrypted + lifecycle
+
+
+
+
+Changes: confirm/close auth; implement the two webhook signature verifications; add CI with a
+test+migration gate; add a testcontainers integration suite for the transcript path; add LLM
+structured-output validation + an eval harness; add RLS for tenant scoping (even single-tenant
+today, it's cheap insurance); move CORS to env; add AI cost/latency to OTel. No new
+infrastructure. Migration risk: low. This is 80% of the value.
+
+
+
+Option B — Strategic future (only if adoption/scale justify
+it)
+
+Triggered by measured need, not ambition:
+
+
+    Multi-tenant SaaS: tenant_id everywhere + RLS enforced + per-tenant data-residency routing;
+   SSO/SCIM; SOC 2 program.
+   Grounded Q&A layer: structured SQL retrieval over insight tables first; pgvector for semantic
+   search if evals show keyword/SQL retrieval misses.
+   Event backbone: introduce Kafka/Kinesis only if webhook/event volume outgrows
+   Redis+Celery (measured).
+   Read replicas + materialized views for dashboards before any separate warehouse.
+   Controlled AI actions (draft Jira issue, follow-up) behind human approval + audit.
+
+
+Do not pre-build Option B. Each piece needs a trigger metric.
+
+
+
+
+13. Prioritized roadmap
+
+Phase 1 — Stabilize (30 days). Confirm auth enforcement [CRITICAL, S]; implement Recall + Jira
+webhook signature verification [HIGH, S]; stand up CI with pytest + Alembic model-check + image
+scan [HIGH, M]; confirm prod LOG_LEVEL + transcript/PII redaction + sensitive_fields population
+[HIGH, S]. Success: auth model documented & enforced; signed webhooks; green CI gate on
+every PR.
+
+
+
+Phase 2 — Strengthen foundation (60 days). Integration/E2E tests for transcript insightchain via
+testcontainers [M]; LLM structured-output validation [S]; idempotency keys + DLQ/reaper for
+chords [M]; RLS tenant scoping [M]; dirty-queue-depth + AI cost/latency observability [S].
+Success: critical path covered E2E; no silent LLM-parse failures; measurable AI spend.
+
+
+
+Phase 3 — Product value (90+ days). Evidence-grounded, citation-backed insights [M,
+differentiator]; explainable sentiment ("why this score") [M]; AI evaluation harness with labelled
+set [M]. Success: insights cite their evidence; eval scores tracked per release.
+
+
+
+Phase 4 — Differentiated AI (6–9 mo). Grounded NL Q&A (SQL-first) [L]; AI-assisted drafting with
+human approval [L]; cross-source risk correlation (meeting sentiment overdue Jira worklog
+slippage) [L — this is the genuinely hard, defensible capability]. Gate each behind eval thresholds.
+
+
+
+Phase 5 — Commercial scale (if productizing). SSO/SCIM, SOC 2, multi-tenant, data-residency,
+admin console, billing. Triggered by a go-to-market decision, not before.
+
+
+
+Effort labels are S/M/L/XL and are INFERRED; do not treat them as commitments. No ROI or
+revenue figures are asserted — there is no basis for them.
+
+
+
+
+14. Final recommendation — the ten decisions that
+matter
+1. Confirm how API auth is enforced in production — today. Everything else is secondary until
+    this is answered. (CRITICAL)
+2. Implement the two webhook signature verifications (Recall stub already written; Jira needs
+    one). (HIGH, cheap)
+3. Add CI with an automated test + migration gate. 180 tests that nothing runs is latent, not
+    active, safety. (HIGH)
+4. Add integration tests for the transcript insightchain. The core workflow is currently untested
+    as a chain. (HIGH)
+5. Add LLM structured-output validation + an evaluation harness. You cannot improve AI you
+    cannot measure. (HIGH)
+6. Make insights evidence-grounded and explainable. This is the most defensible differentiator
+    and needs no new infrastructure. (DIFFERENTIATOR)
+7. Design multi-tenant isolation + RLS now, build when productization is decided.
+    (FOUNDATIONAL)
+8. Treat recording consent (EU all-party + AI Act Art. 50) as a design constraint, not a footnote,
+    before any non-India exposure. (COMPLIANCE)
+9. Do not adopt Temporal, Kafka, a vector DB, or microservices without a measured trigger. The
+    stack is fine; discipline beats fashion. (RESTRAINT)
+10. Pick one wedge — delivery-health intelligence for services firms on Jira/JSM + Teams — and
+    prove ROI on Kensium's own book of business before chasing "beyond Planhat." (STRATEGY)
+
+
+What Elevate should deliberately NOT build yet: autonomous AI actions; a vector/RAG stack; a
+second database; a microservices split; SSO/SOC-2 machinery before a productization decision;
+more insight types (you have enough — make the ones you have trustworthy and explainable).
+
+
+
+Can this stack and team go beyond Planhat? On engineering, the foundation is sound and the AI
+direction is correct. "Beyond Planhat" will not be won or lost on FastAPI vs. anything — it will be
+won on (a) evidence-grounded, explainable delivery intelligence that Planhat's CS-ops framing
+doesn't center, and (b) the unglamorous enterprise-readiness and customer-validation work that
+isn't in this repo yet. Build the moat deliberately; the stack is not what's stopping you.
+15. Questions for leadership (answers would
+change the analysis)
+1. Auth: How is API authentication/authorization enforced in production (reverse proxy?
+    gateway?), and is it actually in front of every route including webhooks and recording control?
+    (Blocks Section 9.)
+2. LLM provider/model: What is LLM_MODEL / UPSELL_LLM_MODEL set to in prod, and is there
+    a data-processing/ZDR agreement with that provider? (Privacy + cost.)
+3. Feature flags: Which of recording_control_enabled, recording_settings_enabled,
+    ms_tenant_routing_enabled, ms_tenant_transcripts_enabled, meeting_notification_enabled
+    are ON in prod? (Determines which code paths actually run.)
+4. Deployment/CI: Where is the real deploy pipeline (none in repo)? Is there staging? What are
+    backup/restore procedures for the managed Postgres?
+5. Recall webhook signature TODO: Known gap or planned work?
+6. sensitive_fields / billing tables: What populates them and what consumes them? (PII
+    redaction depends on this.)
+7. Productization intent: Is external sale a real goal, and on what horizon? (Decides whether
+    Phase 5 and multi-tenant work start now.)
+8. Frontend contract: Where is the Elevate web repo and is the API contract documented, or
+    should it be traced from route schemas?
+9. Target segment: If productized, which first — services firms on Jira/JSM + Teams, or
+    something else? (Decides the wedge.)
+10. Team capacity/budget: What eng capacity is available? (Sequences the roadmap realistically.)
+
+
+
+
+16. Honest limitations of this analysis
+   Read-only: no code executed, no tests run, no production observed. Runtime feature-flag
+   states and the auth-enforcement reality are UNKNOWN and gate several conclusions.
+   I verified the highest-stakes claims (auth, webhook signatures, stack, no-RAG, Celery config,
+   counts) directly; I did not re-read all 713 source files, so I am relying on the two audits —
+   which proved accurate where I checked — for the exhaustive file map and some workflow
+   detail.
+   Competitor facts are from 2026-10-17 research and may drift; treat them as a point-in-time
+   snapshot.
+   Effort estimates are INFERRED and not commitments. No financial, ROI, or performance
+   numbers are asserted — none are supportable from this material.
+   Everything about external productization is "if productized" — there is no evidence Elevate is
+   sold externally today, and that framing should hold until leadership says otherwise.
+End of report.
+

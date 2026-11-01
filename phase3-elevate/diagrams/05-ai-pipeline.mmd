@@ -1,0 +1,16 @@
+flowchart TD
+  A["Capture<br/>Teams transcript webhook (Graph) or Recall bot [D]"] --> B["Transcript retrieval<br/>VTT via Graph / Recall JSON [D]"]
+  B --> C["Normalisation<br/>map metadata + content to transcripts row [D]<br/>speaker/turn parsing UNKNOWN"]
+  C --> D["Post-processing chord<br/>recording URL + attendance, S3 upload (+30 s) [D]"]
+  D --> E["process_meeting_insights (+60 s) [D]<br/>fan-out to 7 tasks"]
+  E --> E1["summary"] & E2["minutes"] & E3["key notes"] & E4["action items"] & E5["commitments"] & E6["sentiment (v2 prompt)"] & E7["upsell (v2, own model)"]
+  E1 & E2 & E3 --> P1[("meeting_insights<br/>upsert on (transcript, type)")]
+  E4 --> P2[("meeting_action_items")]
+  E5 --> P3[("meeting_commitments")]
+  E6 --> P4[("meeting_sentiments")]
+  E7 --> P5[("meeting_upsell_opportunities")]
+  P1 & P2 & P3 & P4 & P5 --> F["Final callback [D]<br/>email via Graph, sales-stage insight,<br/>mark_dirty(customer, project)"]
+  F --> G["Scheduler every 2 min [D]<br/>customer sentiment trend, project alerts"]
+  G --> H[("ai_insights<br/>polymorphic reference_id")]
+  H --> UI["User-facing view: UNKNOWN<br/>(no insight screen in documented frontend)"]
+  P1 -. "no human review before write [D]" .- P2
